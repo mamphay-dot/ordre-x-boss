@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "boss-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server", "pwa", "-p", "5150", "-c-1", "--silent"],
+      "port": 5150
+    }
+  ]
+}
