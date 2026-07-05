@@ -16,7 +16,7 @@
 <style>
   :root{
     --black:#0E0E0F;--char:#1A1A1C;--char2:#242427;--line:#34343A;--line2:#28282D;
-    --gold:#C8A23A;--gold-dim:#8a6f28;--cream:#ECECEE;--cream-dim:#9A9AA0;
+    --gold:#C8A23A;--gold-dim:#8a6f28;--cream:#ECECEE;--cream-dim:#D8D8DC;
     --green:#C8A23A;--red:#9A9AA0;--amber:#C8A23A;--wa:#C8A23A;
     --on-accent:#16140d;--field-bg:#0b0b0c;--card-accent:#1A1A1C;
     --nav-h:64px;
@@ -31,8 +31,9 @@
   .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px}
   .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1}
   .blogo .dot{color:var(--cream)}
-  .cloud-badge{background:var(--char);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--cream-dim);white-space:nowrap}
-  .cloud-badge.cb-off{color:var(--cream-dim)}
+  .cloud-badge{background:var(--char);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--cream);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  .cloud-badge .ic{width:14px;height:14px}
+  .cloud-badge.cb-off{color:var(--cream)}
   .cloud-badge.cb-on{color:var(--gold);border-color:var(--gold)}
   .cloud-badge.cb-sync{color:#5cc;border-color:#5cc}
   .cloud-badge.cb-warn{color:#e08;border-color:#e08}
@@ -41,7 +42,8 @@
   .profbtn{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:7px 11px;cursor:pointer;max-width:62%}
   .profbtn .pi{min-width:0}
   .profbtn .pn{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .profbtn .pm{font-size:11px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profbtn .pm{font-size:11px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:5px}
+  .profbtn .pm .ic{width:13px;height:13px}
   .profbtn .car{color:var(--gold);font-size:11px}
 
   .view{display:none;padding:16px 15px}
@@ -596,7 +598,7 @@
   <div class="topbar">
     <div class="blogo">BOSS<span class="dot">.</span></div>
     <button class="theme-toggle" id="theme-toggle" data-ic="theme" title="Clair / sombre"></button>
-    <button class="cloud-badge cb-off" id="cloud-badge" title="Espace en ligne">🔒 Local</button>
+    <button class="cloud-badge cb-off" id="cloud-badge" title="Espace en ligne">Local</button>
     <button class="profbtn" id="profbtn">
       <div class="pi"><div class="pn" id="cur-name">…</div><div class="pm" id="cur-metier"></div></div>
       <span class="car">▾</span>

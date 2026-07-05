@@ -114,7 +114,10 @@ function renderTopbar(){
   const p=cur();
   const m=BOSS.METIERS[p.metier];
   $("#cur-name").textContent=p.name;
-  $("#cur-metier").textContent=(m?m.ic+" "+m.name:"—");
+  const cm=$("#cur-metier"); if(!cm) return;
+  if(!m){ cm.textContent="—"; return; }
+  const icName=METIER_IC[p.metier]||"boutique";
+  cm.innerHTML=ic(icName)+" "+escapeHtml(m.name);
 }
 function openProfiles(){
   const sheet=$("#sheet"); sheet.innerHTML="";
@@ -1186,16 +1189,16 @@ function refreshCloudBadge(){
   const b = $("#cloud-badge"); if(!b) return;
   const s = Cloud.status();
   const map = {
-    off:         {ic:"🔒", txt:"Local",     cls:"cb-off"},
-    "signed-out":{ic:"👤", txt:"Se connecter", cls:"cb-off"},
-    "needs-org": {ic:"➕", txt:"Créer org",  cls:"cb-warn"},
-    syncing:     {ic:"🔄", txt:"Sync…",     cls:"cb-sync"},
-    online:      {ic:"☁️", txt:"En ligne",  cls:"cb-on"},
-    offline:     {ic:"⚠️", txt:"Hors-ligne", cls:"cb-warn"},
-    error:       {ic:"❗️", txt:"Erreur",    cls:"cb-err"}
+    off:         {ic:"lock",  txt:"Local",       cls:"cb-off"},
+    "signed-out":{ic:"user",  txt:"Se connecter",cls:"cb-off"},
+    "needs-org": {ic:"add",   txt:"Créer org",   cls:"cb-warn"},
+    syncing:     {ic:"sync",  txt:"Sync…",       cls:"cb-sync"},
+    online:      {ic:"cloud", txt:"En ligne",    cls:"cb-on"},
+    offline:     {ic:"warn",  txt:"Hors-ligne",  cls:"cb-warn"},
+    error:       {ic:"warn",  txt:"Erreur",      cls:"cb-err"}
   };
   const m = map[s] || map.off;
-  b.textContent = m.ic + " " + m.txt;
+  b.innerHTML = ic(m.ic) + " " + m.txt;
   b.className = "cloud-badge " + m.cls;
 }
 
@@ -2055,8 +2058,23 @@ const ICON={
  bank2:'<path d="M4 10h16M5 10l7-5 7 5M6 10v7M18 10v7M10 10v7M14 10v7M3 20h18"/>',
  pos:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2.5M13.5 11h2.5M8 15h2.5M13.5 15h2.5"/>',
  coins:'<circle cx="9" cy="9" r="5"/><path d="M14.5 5.2a5 5 0 0 1 0 7.6M7 9h4"/>',
- team:'<circle cx="8" cy="8" r="3"/><path d="M2.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="8" r="2.5"/><path d="M15 14.2A5 5 0 0 1 21.5 19"/>'
+ team:'<circle cx="8" cy="8" r="3"/><path d="M2.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="8" r="2.5"/><path d="M15 14.2A5 5 0 0 1 21.5 19"/>',
+ user:'<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+ cloud:'<path d="M7 18h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.9-1 4 4 0 0 0 .9 9z"/>',
+ warn:'<path d="M12 4l10 17H2z"/><path d="M12 10v5M12 18.5v.1"/>',
+ building:'<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
+ chef:'<path d="M7 12a4 4 0 1 1 5-6 4 4 0 1 1 5 6v3H7z"/><path d="M7 15h10v3a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/>',
+ bed:'<path d="M3 8v12M21 20V12a3 3 0 0 0-3-3H8v11"/><path d="M3 14h18"/><circle cx="7" cy="12" r="1.6"/>',
+ book:'<path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1 0-4h12"/><path d="M9 8h6M9 11h5"/>',
+ shears:'<circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M8.8 15L20 4M15.2 15L4 4M10 12l4 0"/>',
+ chick:'<circle cx="12" cy="12" r="7"/><circle cx="14" cy="10" r="0.8" fill="currentColor" stroke="none"/><path d="M18 12l3-1-2 3M9 17a4 4 0 0 0 6 0"/>',
+ wrench:'<path d="M14 6a4 4 0 0 1 5 5l-9 9-4-4z"/><circle cx="16" cy="8" r="1" fill="currentColor" stroke="none"/>',
+ factory:'<path d="M3 20V10l6 3V10l6 3V7l6 3v10z"/><path d="M7 20v-4M12 20v-4M17 20v-4"/>',
+ sprout:'<path d="M12 21V10"/><path d="M12 12a5 5 0 0 0-5-5H4a5 5 0 0 0 8 5zM12 14a5 5 0 0 1 5-5h3a5 5 0 0 1-8 5z"/>'
 };
+
+/* Correspondance métier -> icône outline (topbar, chips) */
+const METIER_IC={vendeur:"boutique",maquis:"chef",hotel:"bed",industrie:"factory",enseignant:"book",couturier:"shears",eleveur:"chick",mecanicien:"wrench",transformateur:"factory",producteur:"sprout"};
 function ic(name,cls){ const p=ICON[name]||""; return `<svg class="ic ${cls||""}" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`; }
 function renderIcons(root){ (root||document).querySelectorAll("[data-ic]").forEach(e=>{ const n=e.getAttribute("data-ic"); if(ICON[n]) e.innerHTML=ic(n); }); }
 

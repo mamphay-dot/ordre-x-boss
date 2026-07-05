@@ -16,7 +16,7 @@
 <style>
   :root{
     --black:#0E0E0F;--char:#1A1A1C;--char2:#242427;--line:#34343A;--line2:#28282D;
-    --gold:#C8A23A;--gold-dim:#8a6f28;--cream:#ECECEE;--cream-dim:#9A9AA0;
+    --gold:#C8A23A;--gold-dim:#8a6f28;--cream:#ECECEE;--cream-dim:#D8D8DC;
     --green:#C8A23A;--red:#9A9AA0;--amber:#C8A23A;--wa:#C8A23A;
     --on-accent:#16140d;--field-bg:#0b0b0c;--card-accent:#1A1A1C;
     --nav-h:64px;
@@ -31,8 +31,9 @@
   .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px}
   .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1}
   .blogo .dot{color:var(--cream)}
-  .cloud-badge{background:var(--char);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--cream-dim);white-space:nowrap}
-  .cloud-badge.cb-off{color:var(--cream-dim)}
+  .cloud-badge{background:var(--char);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--cream);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  .cloud-badge .ic{width:14px;height:14px}
+  .cloud-badge.cb-off{color:var(--cream)}
   .cloud-badge.cb-on{color:var(--gold);border-color:var(--gold)}
   .cloud-badge.cb-sync{color:#5cc;border-color:#5cc}
   .cloud-badge.cb-warn{color:#e08;border-color:#e08}
@@ -41,7 +42,8 @@
   .profbtn{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:7px 11px;cursor:pointer;max-width:62%}
   .profbtn .pi{min-width:0}
   .profbtn .pn{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .profbtn .pm{font-size:11px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profbtn .pm{font-size:11px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:5px}
+  .profbtn .pm .ic{width:13px;height:13px}
   .profbtn .car{color:var(--gold);font-size:11px}
 
   .view{display:none;padding:16px 15px}
@@ -596,7 +598,7 @@
   <div class="topbar">
     <div class="blogo">BOSS<span class="dot">.</span></div>
     <button class="theme-toggle" id="theme-toggle" data-ic="theme" title="Clair / sombre"></button>
-    <button class="cloud-badge cb-off" id="cloud-badge" title="Espace en ligne">🔒 Local</button>
+    <button class="cloud-badge cb-off" id="cloud-badge" title="Espace en ligne">Local</button>
     <button class="profbtn" id="profbtn">
       <div class="pi"><div class="pn" id="cur-name">…</div><div class="pm" id="cur-metier"></div></div>
       <span class="car">▾</span>
@@ -2260,7 +2262,10 @@ function renderTopbar(){
   const p=cur();
   const m=BOSS.METIERS[p.metier];
   $("#cur-name").textContent=p.name;
-  $("#cur-metier").textContent=(m?m.ic+" "+m.name:"—");
+  const cm=$("#cur-metier"); if(!cm) return;
+  if(!m){ cm.textContent="—"; return; }
+  const icName=METIER_IC[p.metier]||"boutique";
+  cm.innerHTML=ic(icName)+" "+escapeHtml(m.name);
 }
 function openProfiles(){
   const sheet=$("#sheet"); sheet.innerHTML="";
@@ -3332,16 +3337,16 @@ function refreshCloudBadge(){
   const b = $("#cloud-badge"); if(!b) return;
   const s = Cloud.status();
   const map = {
-    off:         {ic:"🔒", txt:"Local",     cls:"cb-off"},
-    "signed-out":{ic:"👤", txt:"Se connecter", cls:"cb-off"},
-    "needs-org": {ic:"➕", txt:"Créer org",  cls:"cb-warn"},
-    syncing:     {ic:"🔄", txt:"Sync…",     cls:"cb-sync"},
-    online:      {ic:"☁️", txt:"En ligne",  cls:"cb-on"},
-    offline:     {ic:"⚠️", txt:"Hors-ligne", cls:"cb-warn"},
-    error:       {ic:"❗️", txt:"Erreur",    cls:"cb-err"}
+    off:         {ic:"lock",  txt:"Local",       cls:"cb-off"},
+    "signed-out":{ic:"user",  txt:"Se connecter",cls:"cb-off"},
+    "needs-org": {ic:"add",   txt:"Créer org",   cls:"cb-warn"},
+    syncing:     {ic:"sync",  txt:"Sync…",       cls:"cb-sync"},
+    online:      {ic:"cloud", txt:"En ligne",    cls:"cb-on"},
+    offline:     {ic:"warn",  txt:"Hors-ligne",  cls:"cb-warn"},
+    error:       {ic:"warn",  txt:"Erreur",      cls:"cb-err"}
   };
   const m = map[s] || map.off;
-  b.textContent = m.ic + " " + m.txt;
+  b.innerHTML = ic(m.ic) + " " + m.txt;
   b.className = "cloud-badge " + m.cls;
 }
 
@@ -4201,8 +4206,23 @@ const ICON={
  bank2:'<path d="M4 10h16M5 10l7-5 7 5M6 10v7M18 10v7M10 10v7M14 10v7M3 20h18"/>',
  pos:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2.5M13.5 11h2.5M8 15h2.5M13.5 15h2.5"/>',
  coins:'<circle cx="9" cy="9" r="5"/><path d="M14.5 5.2a5 5 0 0 1 0 7.6M7 9h4"/>',
- team:'<circle cx="8" cy="8" r="3"/><path d="M2.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="8" r="2.5"/><path d="M15 14.2A5 5 0 0 1 21.5 19"/>'
+ team:'<circle cx="8" cy="8" r="3"/><path d="M2.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="8" r="2.5"/><path d="M15 14.2A5 5 0 0 1 21.5 19"/>',
+ user:'<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+ cloud:'<path d="M7 18h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.9-1 4 4 0 0 0 .9 9z"/>',
+ warn:'<path d="M12 4l10 17H2z"/><path d="M12 10v5M12 18.5v.1"/>',
+ building:'<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
+ chef:'<path d="M7 12a4 4 0 1 1 5-6 4 4 0 1 1 5 6v3H7z"/><path d="M7 15h10v3a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/>',
+ bed:'<path d="M3 8v12M21 20V12a3 3 0 0 0-3-3H8v11"/><path d="M3 14h18"/><circle cx="7" cy="12" r="1.6"/>',
+ book:'<path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1 0-4h12"/><path d="M9 8h6M9 11h5"/>',
+ shears:'<circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M8.8 15L20 4M15.2 15L4 4M10 12l4 0"/>',
+ chick:'<circle cx="12" cy="12" r="7"/><circle cx="14" cy="10" r="0.8" fill="currentColor" stroke="none"/><path d="M18 12l3-1-2 3M9 17a4 4 0 0 0 6 0"/>',
+ wrench:'<path d="M14 6a4 4 0 0 1 5 5l-9 9-4-4z"/><circle cx="16" cy="8" r="1" fill="currentColor" stroke="none"/>',
+ factory:'<path d="M3 20V10l6 3V10l6 3V7l6 3v10z"/><path d="M7 20v-4M12 20v-4M17 20v-4"/>',
+ sprout:'<path d="M12 21V10"/><path d="M12 12a5 5 0 0 0-5-5H4a5 5 0 0 0 8 5zM12 14a5 5 0 0 1 5-5h3a5 5 0 0 1-8 5z"/>'
 };
+
+/* Correspondance métier -> icône outline (topbar, chips) */
+const METIER_IC={vendeur:"boutique",maquis:"chef",hotel:"bed",industrie:"factory",enseignant:"book",couturier:"shears",eleveur:"chick",mecanicien:"wrench",transformateur:"factory",producteur:"sprout"};
 function ic(name,cls){ const p=ICON[name]||""; return `<svg class="ic ${cls||""}" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`; }
 function renderIcons(root){ (root||document).querySelectorAll("[data-ic]").forEach(e=>{ const n=e.getAttribute("data-ic"); if(ICON[n]) e.innerHTML=ic(n); }); }
 
