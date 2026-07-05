@@ -17,7 +17,7 @@ Une fois installée, elle marche exactement comme une app native :
 
 **Navigateur : Chrome** (ou Samsung Internet, Edge, Brave).
 
-1. Ouvre https://mamphay-dot.github.io/ordre-x-boss/
+1. Ouvre https://boss.ordre-x.com
 2. Une bannière **« Installer BOSS sur ton téléphone »** apparaît en haut. Tape dessus.
 3. Confirme « **Installer** » dans la fenêtre de Chrome.
 4. L'icône **BOSS** apparaît sur l'écran d'accueil comme n'importe quelle app.
@@ -36,7 +36,7 @@ Une fois installée, elle marche exactement comme une app native :
 oblige tous les navigateurs iOS à utiliser le moteur de Safari mais réserve
 l'installation à Safari lui-même.)
 
-1. Ouvre **Safari**, va sur https://mamphay-dot.github.io/ordre-x-boss/
+1. Ouvre **Safari**, va sur https://boss.ordre-x.com
 2. Tape sur l'icône **« Partager »** (le carré avec la flèche vers le haut, au
    milieu de la barre du bas).
 3. Fais défiler vers le bas → tape **« Sur l'écran d'accueil »** (Add to Home Screen).
@@ -84,7 +84,7 @@ preuves en PWA (retour utilisateur, volume d'inscriptions, etc.).
 - Délai : 1 à 7 jours pour la revue Google.
 - Technique : on emballe la PWA dans un **APK/AAB** via **Bubblewrap** ou
   **PWABuilder** (Trusted Web Activity). Le code source reste identique —
-  c'est juste un wrapper qui affiche https://mamphay-dot.github.io/ordre-x-boss/
+  c'est juste un wrapper qui affiche https://boss.ordre-x.com
   en plein écran.
 - À prévoir : compte Google Play Console + politique de confidentialité +
   captures d'écran.
@@ -110,7 +110,7 @@ la crédibilité — pas avant.
 
 ## Distribution rapide sans store
 
-Tu peux partager le lien https://mamphay-dot.github.io/ordre-x-boss/ n'importe où :
+Tu peux partager le lien https://boss.ordre-x.com n'importe où :
 WhatsApp, SMS, Facebook, affiche avec QR code, etc. Un simple tap installe l'app
 en 30 secondes. Zéro friction.
 

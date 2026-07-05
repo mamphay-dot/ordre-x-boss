@@ -9,7 +9,7 @@ multi-appareils avec Supabase (Postgres + Auth + Realtime).
 
 | Ressource | URL |
 |---|---|
-| **App publique** | **https://mamphay-dot.github.io/ordre-x-boss/** ✅ en ligne |
+| **App publique** | **https://boss.ordre-x.com** ✅ en ligne |
 | Repo GitHub | https://github.com/mamphay-dot/ordre-x-boss |
 | Projet Supabase | https://supabase.com/dashboard/project/jqgogwydfncfidcuqcbb |
 | DB URL | `https://jqgogwydfncfidcuqcbb.supabase.co` |
@@ -116,9 +116,9 @@ que la clé fuite via la config locale (backups, forks, IDE plugins).
 
 Dans **Authentication → URL Configuration** :
 
-- Site URL : `https://mamphay-dot.github.io/ordre-x-boss/`
+- Site URL : `https://boss.ordre-x.com`
 - Redirect URLs (autoriser) :
-  - `https://mamphay-dot.github.io/ordre-x-boss/`
+  - `https://boss.ordre-x.com`
   - `http://localhost:5150/` *(dev local)*
   - votre domaine personnalisé si applicable
 

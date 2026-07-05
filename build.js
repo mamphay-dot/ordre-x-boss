@@ -57,6 +57,7 @@ const SAFE = [
   "icon-512.png",
   "icon-maskable-512.png",
   ".htaccess",
+  "CNAME",
 ];
 fs.mkdirSync("docs", { recursive: true });
 fs.writeFileSync("docs/index.html", html);
