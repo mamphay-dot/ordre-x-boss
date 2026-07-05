@@ -1,0 +1,26 @@
+# ===== BOSS — configuration hébergement LWS =====
+
+# 1) Forcer HTTPS (indispensable pour une PWA installable)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# 2) Types MIME corrects (manifeste + service worker)
+AddType application/manifest+json .webmanifest
+AddType text/javascript .js
+AddType image/png .png
+
+# 3) Ne pas mettre en cache la page ni le service worker
+#    -> garantit que tes futures mises à jour s'affichent tout de suite
+<IfModule mod_headers.c>
+  <FilesMatch "(sw\.js|index\.html|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
+
+# 4) Page d'entrée par défaut
+DirectoryIndex index.html

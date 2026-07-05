@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0E0E0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BOSS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>BOSS — C'est toi le boss</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0E0E0F;--char:#1A1A1C;--char2:#242427;--line:#34343A;--line2:#28282D;
+    --gold:#C8A23A;--gold-dim:#8a6f28;--cream:#ECECEE;--cream-dim:#9A9AA0;
+    --green:#C8A23A;--red:#9A9AA0;--amber:#C8A23A;--wa:#C8A23A;
+    --on-accent:#16140d;--field-bg:#0b0b0c;--card-accent:#1A1A1C;
+    --nav-h:64px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--black);color:var(--cream);font-family:'Inter',system-ui,sans-serif;line-height:1.5;font-size:15px;overscroll-behavior-y:none}
+  .app{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:calc(var(--nav-h) + 14px);position:relative}
+  b{color:var(--cream);font-weight:700}.muted2{color:var(--cream-dim);font-size:13px}
+
+  /* TOPBAR */
+  .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px}
+  .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1}
+  .blogo .dot{color:var(--cream)}
+  .cloud-badge{background:var(--char);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--cream-dim);white-space:nowrap}
+  .cloud-badge.cb-off{color:var(--cream-dim)}
+  .cloud-badge.cb-on{color:var(--gold);border-color:var(--gold)}
+  .cloud-badge.cb-sync{color:#5cc;border-color:#5cc}
+  .cloud-badge.cb-warn{color:#e08;border-color:#e08}
+  .cloud-badge.cb-err{color:#e33;border-color:#e33}
+  .cl-mem-row,.cl-inv-row{background:var(--char2);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:13px}
+  .profbtn{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:7px 11px;cursor:pointer;max-width:62%}
+  .profbtn .pi{min-width:0}
+  .profbtn .pn{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profbtn .pm{font-size:11px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profbtn .car{color:var(--gold);font-size:11px}
+
+  .view{display:none;padding:16px 15px}
+  .view.on{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  h2.vt{font-family:'Archivo';font-weight:800;font-size:21px;letter-spacing:-.01em;margin-bottom:3px}
+  .vsub{color:var(--cream-dim);font-size:13px;margin-bottom:15px}
+
+  /* ---- ONBOARDING CHAT ---- */
+  .chatwrap{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--black);display:flex;flex-direction:column;height:calc(100vh - var(--nav-h) - 200px);min-height:380px}
+  .chatbar{background:var(--wa);padding:11px 14px;display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  .chatbar .av{width:32px;height:32px;border-radius:50%;background:var(--gold);color:var(--on-accent);font-family:'Archivo';font-weight:900;display:flex;align-items:center;justify-content:center;font-size:16px}
+  .chatbar .nm{font-weight:700;color:#fff;font-size:14px;line-height:1.1}
+  .chatbar .st{font-size:11px;color:var(--cream-dim)}
+  .chatbar .rst{margin-left:auto;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:6px 9px;border-radius:8px;cursor:pointer}
+  #chat{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:8px;background-image:radial-gradient(rgba(255,255,255,.02) 1px,transparent 1px);background-size:16px 16px}
+  .bub{max-width:84%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word}
+  .bub.b{align-self:flex-start;background:var(--char2);border:1px solid var(--line);border-top-left-radius:4px;color:var(--cream)}
+  .bub.u{align-self:flex-end;background:var(--card-accent);border-top-right-radius:4px;color:var(--cream)}
+  .bub .who{font-family:'Archivo';font-weight:700;font-size:10px;color:var(--gold);margin-bottom:2px;letter-spacing:.03em}
+  .bub.u .who{color:var(--gold)}
+  .bub.typing{padding:12px 14px}
+  .dots{display:inline-flex;gap:4px}.dots i{width:6px;height:6px;border-radius:50%;background:var(--cream-dim);animation:bl 1s infinite}
+  .dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+  @keyframes bl{0%,60%,100%{opacity:.3}30%{opacity:1}}
+  .cfg-chip{align-self:center;background:var(--char2);border:1px dashed var(--gold-dim);border-radius:9px;padding:6px 11px;font-family:'IBM Plex Mono';font-size:11px;color:var(--gold);text-align:center}
+  .cfg-chip .tick{color:var(--green)}
+  .chat-cta{align-self:center;background:var(--gold);color:var(--on-accent);border:none;border-radius:11px;padding:11px 18px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Archivo';margin-top:4px}
+  .chatinput{display:flex;gap:8px;align-items:center;padding:10px;background:var(--black);border-top:1px solid var(--line);flex:0 0 auto}
+  .chatinput input{flex:1;background:var(--field-bg);border:1px solid var(--line);border-radius:22px;color:var(--cream);padding:11px 15px;font-size:15px;font-family:'Inter'}
+  .chatinput input:focus{outline:none;border-color:var(--gold-dim)}
+  .iconbtn{width:42px;height:42px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex:0 0 auto}
+  #chat-mic{display:none;background:var(--field-bg);border:1px solid var(--line);color:var(--cream-dim)}
+  #chat-send{background:var(--gold);color:var(--on-accent)}
+
+  /* ---- CONFIG ---- */
+  .card{background:var(--char);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:15px}
+  .card h3{font-family:'Archivo';font-weight:800;font-size:14px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .card .ch{color:var(--cream-dim);font-size:12px;margin-bottom:12px}
+  .field{width:100%;background:var(--field-bg);border:1px solid var(--line);border-radius:9px;color:var(--cream);padding:11px 12px;font-size:15px;font-family:'Inter';margin-bottom:4px}
+  .field:focus{outline:none;border-color:var(--gold)}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px;scrollbar-width:thin}
+  .chips::-webkit-scrollbar{height:5px}.chips::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .chip{flex:0 0 auto;cursor:pointer;border:1px solid var(--line);background:var(--char2);color:var(--cream);border-radius:11px;padding:9px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap;font-family:'Inter'}
+  .chip .ic{font-size:16px}
+  .chip.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold);font-weight:700}
+  .unite{font-size:12px;color:var(--cream-dim);margin-bottom:10px}.unite b{color:var(--gold);font-weight:600}
+  .lhead{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 28px;gap:6px;padding:0 3px 5px;font-size:10px;letter-spacing:.03em;text-transform:uppercase;color:var(--gold-dim);font-weight:700}
+  .lhead span:nth-child(n+2){text-align:right}
+  .chhead{display:grid;grid-template-columns:1.6fr 1fr 28px;gap:6px;padding:0 3px 5px;font-size:10px;text-transform:uppercase;color:var(--gold-dim);font-weight:700}
+  .chhead span:nth-child(2){text-align:right}
+  .lines{display:flex;flex-direction:column;gap:7px}
+  .lrow{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 28px;gap:6px;align-items:center;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:6px}
+  .lrow.chargerow{grid-template-columns:1.6fr 1fr 28px}
+  .f{width:100%;background:var(--field-bg);border:1px solid var(--line);border-radius:7px;color:var(--cream);font-family:'IBM Plex Mono';font-size:13px;padding:8px 7px;text-align:right}
+  .f.name{text-align:left;font-family:'Inter';font-weight:600}
+  .f:focus{outline:none;border-color:var(--gold)}
+  .del{background:none;border:none;color:var(--cream-dim);cursor:pointer;font-size:18px;padding:2px;border-radius:6px}
+  .del:active{color:var(--red)}
+  .addbtn{margin-top:11px;width:100%;background:transparent;border:1px dashed var(--gold-dim);color:var(--gold);border-radius:9px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .target{display:flex;align-items:center;gap:13px}
+  .tval{font-family:'IBM Plex Mono';font-weight:700;font-size:24px;color:var(--gold);min-width:68px}
+  input[type=range]{flex:1;-webkit-appearance:none;height:6px;border-radius:3px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--gold);border:4px solid var(--on-accent)}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:var(--gold);border:4px solid var(--on-accent)}
+
+  /* ---- DASHBOARD ---- */
+  .hero{background:var(--card-accent);border:1px solid var(--gold-dim);border-radius:16px;padding:18px;margin-bottom:13px}
+  .hero .lbl{font-family:'Archivo';font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+  .hero .big{font-family:'IBM Plex Mono';font-weight:700;font-size:36px;letter-spacing:-.02em;margin:3px 0 3px;line-height:1}
+  .hero .big.pos{color:var(--green)}.hero .big.neg{color:var(--red)}
+  .hero .note{font-size:13px;color:var(--cream-dim)}.hero .note b{color:var(--cream)}
+  .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:13px}
+  .stat{background:var(--char);border:1px solid var(--line);border-radius:11px;padding:10px}
+  .stat .k{font-size:10px;text-transform:uppercase;color:var(--cream-dim);font-weight:600;line-height:1.2}
+  .stat .v{font-family:'IBM Plex Mono';font-weight:600;font-size:14px;margin-top:5px}
+  .stat .pct{font-size:10px;color:var(--gold);font-family:'IBM Plex Mono'}
+  .seuil{background:var(--char);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:13px}
+  .seuil h3{font-family:'Archivo';font-weight:800;font-size:14px;margin-bottom:9px}
+  .seuil .stxt{font-size:13px;color:var(--cream-dim);margin-bottom:10px}.seuil .stxt b{color:var(--cream)}
+  .gauge{height:14px;background:var(--field-bg);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .gfill{height:100%;border-radius:7px;transition:width .4s ease;background:var(--green)}
+  .glabels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--cream-dim);margin-top:6px;font-family:'IBM Plex Mono'}
+  .coach{background:var(--card-accent);border:1px solid var(--gold-dim);border-radius:14px;padding:14px;margin-bottom:13px}
+  .coach h3{font-family:'Archivo';font-weight:800;font-size:14px;color:var(--gold);display:flex;gap:8px;align-items:center;margin-bottom:9px}
+  .coach ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+  .coach li{font-size:13px;display:flex;gap:8px;line-height:1.4}.coach li .b{flex:0 0 auto;margin-top:1px}
+  .priceblock{background:var(--char);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:13px}
+  .priceblock h3{font-family:'Archivo';font-weight:800;font-size:14px;margin-bottom:3px}
+  .priceblock .sl{font-size:11.5px;color:var(--cream-dim);margin-bottom:10px}
+  .prow{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:7px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+  .prow:first-of-type{border-top:none}
+  .prow .pn{font-size:12.5px;font-weight:600;line-height:1.2}
+  .prow .pv{font-family:'IBM Plex Mono';font-size:12px;text-align:right}
+  .prow .pv small{display:block;font-size:9px;color:var(--cream-dim);font-family:'Inter';text-transform:uppercase}
+  .badge{font-family:'IBM Plex Mono';font-size:10px;font-weight:700;padding:3px 6px;border-radius:6px;text-align:center}
+  .badge.ok{background:var(--char2);color:var(--green)}.badge.low{background:var(--char2);color:var(--amber)}.badge.bad{background:var(--char2);color:var(--red)}
+  /* AI coach */
+  .aibox{background:var(--char);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .aibox h3{font-family:'Archivo';font-weight:800;font-size:14px;margin-bottom:3px;display:flex;gap:8px;align-items:center}
+  .aibox .sl{font-size:11.5px;color:var(--cream-dim);margin-bottom:10px}
+  .ai-quicks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .ai-quick{background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:9px;padding:7px 10px;font-size:12px;cursor:pointer;font-family:'Inter'}
+  #ai-log{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;margin-bottom:10px}
+  #ai-log:empty{display:none}
+  .ai-u{align-self:flex-end;background:var(--card-accent);color:var(--cream);padding:8px 11px;border-radius:12px;border-top-right-radius:4px;font-size:13px;max-width:85%}
+  .ai-b{align-self:flex-start;background:var(--char2);border:1px solid var(--line);padding:9px 12px;border-radius:12px;border-top-left-radius:4px;font-size:13px;max-width:90%;white-space:pre-wrap;line-height:1.45}
+  .airow{display:flex;gap:8px}
+  .airow input{flex:1;background:var(--field-bg);border:1px solid var(--line);border-radius:11px;color:var(--cream);padding:11px 13px;font-size:14px}
+  .airow input:focus{outline:none;border-color:var(--gold)}
+  .airow button{background:var(--gold);color:var(--on-accent);border:none;border-radius:11px;padding:0 16px;font-weight:700;cursor:pointer}
+
+  /* BOUTIQUE */
+  .v-headrow{display:flex;align-items:flex-start;gap:10px;margin-bottom:13px}
+  .v-headrow .vt{margin-bottom:2px}
+  .v-share{margin-left:auto;flex:0 0 auto;background:var(--wa);color:#fff;border:none;border-radius:11px;padding:9px 13px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter'}
+  .v-add{width:100%;background:var(--gold);color:var(--on-accent);border:none;border-radius:12px;padding:13px;font-weight:800;font-size:15px;cursor:pointer;font-family:'Archivo';margin-bottom:15px}
+  .v-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  @media(max-width:360px){.v-grid{grid-template-columns:1fr}}
+  .v-empty{grid-column:1/-1;text-align:center;color:var(--cream-dim);font-size:14px;padding:40px 10px;border:1px dashed var(--line);border-radius:14px;line-height:1.6}
+  .vcard{background:var(--char);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .vc-img{width:100%;aspect-ratio:1/1;background-size:cover;background-position:center;background-color:var(--char2)}
+  .vc-img.noimg{display:flex;align-items:center;justify-content:center;font-family:'Archivo';font-weight:900;font-size:46px;color:var(--gold-dim)}
+  .vc-body{padding:10px 11px 11px;display:flex;flex-direction:column;gap:6px}
+  .vc-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+  .vc-name{font-weight:700;font-size:13.5px;line-height:1.2}
+  .vc-price{font-family:'IBM Plex Mono';font-weight:700;font-size:13px;color:var(--gold);white-space:nowrap}
+  .vc-desc{font-size:11.5px;color:var(--cream-dim);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:31px}
+  .vc-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+  .vc-btn{flex:1 1 auto;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:7px 6px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'Inter';white-space:nowrap}
+  .vc-btn.pay{background:var(--char2);border-color:var(--line);color:var(--green);flex-basis:100%}
+  .vc-btn.share{background:var(--char2);border-color:var(--line);color:var(--gold)}
+  .vc-btn.edit,.vc-btn.del{flex:0 0 auto;width:38px;text-align:center}
+
+  /* EDITEUR PRODUIT (sheet) */
+  .ph-drop{display:block;margin-bottom:11px;cursor:pointer}
+  .ph-prev{width:100%;aspect-ratio:16/10;border-radius:12px;background-size:cover;background-position:center;background-color:var(--char2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .ph-prev.empty{border-style:dashed;color:var(--gold-dim);font-size:30px;text-align:center;line-height:1.4}
+  .ph-prev.empty span{display:block;font-size:13px;font-family:'Inter';color:var(--cream-dim);margin-top:4px}
+  .ph-btns{display:flex;gap:8px;margin:9px 0 12px}
+  .ph-b{flex:1;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:10px;padding:11px 8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .ph-b:active{border-color:var(--gold)}
+  textarea.field{resize:vertical;font-family:'Inter';line-height:1.4}
+  .ai-gen{width:100%;background:var(--char2);border:1px solid var(--gold-dim);color:var(--gold);border-radius:10px;padding:11px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:'Inter';margin-bottom:10px}
+  .ai-gen:disabled{opacity:.6}
+  .pf-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .pf-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--gold-dim);font-weight:700;margin:6px 0 4px}
+  .ops{display:flex;gap:7px;margin-bottom:4px}
+  .op{flex:1;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:10px;padding:11px 6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .op.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold);font-weight:700}
+  .pay-note{font-size:11.5px;color:var(--cream-dim);text-align:center;margin-top:10px}
+
+  /* STOCK */
+  .stock-list{display:flex;flex-direction:column;gap:8px}
+  .stock-row{display:grid;grid-template-columns:1fr auto auto;gap:11px;align-items:center;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .stock-row.low{border-color:var(--amber);background:var(--char2)}
+  .sr-name{font-weight:600;font-size:14px}
+  .sr-qty{font-family:'IBM Plex Mono';font-weight:700;font-size:18px;min-width:36px;text-align:right}
+  .stock-row.low .sr-qty{color:var(--amber)}
+  .sr-ctrl{display:flex;gap:5px}
+  .sr-b{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--char2);color:var(--cream);font-size:17px;font-weight:700;cursor:pointer}
+  .sr-b.restock{color:var(--gold)}
+
+  /* CLIENTS */
+  .vc-stock{font-size:11px;font-family:'IBM Plex Mono';color:var(--cream-dim);margin-top:2px}
+  .vc-stock.low{color:var(--amber)}
+  .client-list{display:flex;flex-direction:column;gap:8px}
+  .client-row{display:grid;grid-template-columns:40px 1fr auto;gap:11px;align-items:center;background:var(--char);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .clr-av{width:38px;height:38px;border-radius:50%;background:var(--char2);color:var(--gold);font-family:'Archivo';font-weight:900;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .clr-info{min-width:0}.clr-n{font-weight:700;font-size:14px}.clr-m{font-size:12px;color:var(--cream-dim)}
+  .clr-act{display:flex;gap:3px}.clr-b{background:none;border:none;font-size:18px;cursor:pointer;padding:4px}
+
+  /* HISTORIQUE */
+  #h-chart{padding:14px}
+  .h-leg{display:flex;gap:16px;justify-content:center;margin-top:8px;font-size:12px;color:var(--cream-dim)}
+  .h-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .h-table-head,.h-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;padding:8px 10px}
+  .h-table-head{font-size:10px;text-transform:uppercase;color:var(--gold-dim);font-weight:700}
+  .h-table-head span:nth-child(n+2),.h-row .h-v{text-align:right}
+  .h-table{display:flex;flex-direction:column}
+  .h-row{background:var(--char);border:1px solid var(--line);border-radius:9px;margin-bottom:6px;align-items:center}
+  .h-m{font-weight:700;font-size:13px;text-transform:capitalize}
+  .h-v{font-family:'IBM Plex Mono';font-size:12px}.h-v.pos{color:var(--green)}.h-v.neg{color:var(--red)}.h-v.redtxt{color:var(--red)}
+
+  /* SWITCHES / TVA / SYNC */
+  .switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-weight:600;padding:6px 0;cursor:pointer}
+  .switch-row.mini{font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:10px 11px;background:var(--field-bg)}
+  .switch-row input{width:20px;height:20px;accent-color:var(--gold)}
+  .tag-ind{font-size:10px;background:var(--char2);color:var(--gold-dim);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-weight:700;font-family:'Inter';vertical-align:middle}
+  .ps-note{font-size:12px;color:var(--cream-dim);margin:4px 0 10px;line-height:1.45}
+  .ps-note b{color:var(--gold)}
+  .sy-auto{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;margin:10px 0;cursor:pointer}
+  .sy-auto input{width:20px;height:20px;accent-color:var(--gold)}
+
+  /* BANNIERES */
+  .theme-toggle{background:var(--char2);border:1px solid var(--line);color:var(--cream);width:38px;height:38px;border-radius:11px;font-size:18px;cursor:pointer;flex:0 0 auto}
+  .lock-banner{background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13px;padding:11px 14px;text-align:center;cursor:pointer;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+  .lock-screen{position:fixed;inset:0;z-index:200;background:rgba(8,8,10,.97);display:flex;align-items:center;justify-content:center;padding:24px}
+  .lock-card{max-width:380px;width:100%;background:var(--char);border:1px solid var(--line);border-radius:18px;padding:26px 22px;text-align:center}
+  .lock-ic{font-size:46px;margin-bottom:8px}
+  .lock-card h2{font-family:'Archivo';font-weight:800;font-size:22px;margin-bottom:6px}
+  .lock-card p{color:var(--cream-dim);font-size:14px;margin-bottom:14px}
+  .lock-amt{font-family:'IBM Plex Mono';font-weight:700;font-size:20px;color:var(--gold);margin-bottom:14px}
+  .lock-dev{background:var(--char2);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;color:var(--cream-dim);margin-bottom:14px;line-height:1.5}
+  .lock-dev b{color:var(--cream);font-family:'IBM Plex Mono';font-size:14px;letter-spacing:.05em}
+  .lock-err{color:var(--red);font-size:13px;margin-top:8px;min-height:18px}
+  .lock-admin{background:none;border:none;color:var(--cream-dim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px}
+  .swatches{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 4px}
+  .swatch{width:40px;height:40px;border-radius:50%;cursor:pointer;border:3px solid transparent}
+  .swatch.on{border-color:var(--cream)}
+  .mode-seg{display:flex;gap:8px;margin:6px 0 14px}
+  .mode-b{flex:1;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:10px;padding:12px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .mode-b.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold);font-weight:700}
+  .perm-grid{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .perm-row{display:flex;justify-content:space-between;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12.5px}
+  .perm-row b{color:var(--gold)}
+  /* ACTIONS EN-TÊTE + CATALOGUE PDF */
+  .v-head-actions{margin-left:auto;display:flex;gap:8px;flex:0 0 auto}
+  .v-share.ghost{background:transparent;color:var(--cream);border:1px solid var(--line)}
+  .v-share{display:inline-flex;align-items:center;gap:6px}
+  .v-share .bi{display:inline-flex}.v-share .bi .ic{width:16px;height:16px}
+  #print-area{display:none}
+  @media print{
+    body *{visibility:hidden !important}
+    #print-area,#print-area *{visibility:visible !important}
+    #print-area{display:block !important;position:absolute;left:0;top:0;width:100%;background:#fff;color:#111;padding:18px}
+    .topbar,.tabbar,.sidebar,#lock-banner,#install-hint,#save-warn{display:none !important}
+    @page{margin:12mm}
+  }
+  .pc-head{border-bottom:2px solid #C8A23A;padding-bottom:10px;margin-bottom:16px}
+  .pc-biz{font-family:'Archivo';font-weight:900;font-size:26px;color:#111}
+  .pc-sub{font-size:12px;color:#666;letter-spacing:.03em}
+  .pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .pc-item{border:1px solid #ddd;border-radius:10px;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
+  .pc-img{width:100%;height:150px;object-fit:cover;display:block;background:#f0f0f0}
+  .pc-img.ph{background:repeating-linear-gradient(45deg,#f4f4f4,#f4f4f4 8px,#eee 8px,#eee 16px)}
+  .pc-body{padding:9px 11px}
+  .pc-name{font-weight:700;font-size:14px;color:#111}
+  .pc-desc{font-size:11px;color:#555;margin:3px 0}
+  .pc-price{font-family:'IBM Plex Mono';font-weight:700;font-size:15px;color:#9a7a1e;margin-top:4px}
+  .pc-foot{margin-top:18px;padding-top:10px;border-top:1px solid #ddd;font-size:12px;color:#666;text-align:center}
+  /* PIÈCES COMPTABLES */
+  .pc-filters{display:flex;gap:8px;margin-bottom:10px}
+  .pc-sel{flex:1;padding:10px;font-size:13px}
+  .pc-doclist{display:flex;flex-direction:column;gap:6px}
+  .pc-group{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0 4px}
+  .pcg-title{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold-dim);font-weight:700}
+  .pcg-tot{font-family:'IBM Plex Mono';font-size:12px;display:flex;gap:8px}
+  .pcg-tot .pos{color:var(--gold)}.pcg-tot .neg{color:var(--cream-dim)}
+  .pc-row{display:grid;grid-template-columns:46px 1fr auto;gap:11px;align-items:center;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:9px 11px;cursor:pointer}
+  .pc-thumb{width:46px;height:46px;border-radius:8px;object-fit:cover;background:var(--char2);display:flex;align-items:center;justify-content:center}
+  .pc-thumb.ph{color:var(--cream-dim)}.pc-thumb.ph .ic{width:22px;height:22px}
+  .pc-t{font-weight:700;font-size:13.5px}
+  .pc-m{font-size:12px;color:var(--cream-dim)}
+  .pc-amt{font-family:'IBM Plex Mono';font-weight:700;font-size:14px}
+  .pc-photo{width:100%;height:160px;border-radius:12px;overflow:hidden;background:var(--char2);border:1px solid var(--line);margin-bottom:10px}
+  .pc-photo img{width:100%;height:100%;object-fit:cover}
+  .pc-photo-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--cream-dim);font-size:13px}
+  .pc-photo-empty .ic{width:34px;height:34px}
+  .pc-cap{display:flex;gap:8px;margin-bottom:6px}
+  .pc-cap .plus-item{flex:1;justify-content:center;margin:0}
+  /* TUTORIEL */
+  .tuto{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+  .tuto-step{display:grid;grid-template-columns:32px 1fr;gap:11px;align-items:start;background:var(--char2);border:1px solid var(--line);border-radius:11px;padding:11px}
+  .tuto-n{width:30px;height:30px;border-radius:50%;background:var(--gold);color:var(--on-accent);font-family:'Archivo';font-weight:900;display:flex;align-items:center;justify-content:center}
+  .tuto-t{font-weight:700;font-size:14px;margin-bottom:2px}
+  .tuto-d{font-size:13px;color:var(--cream-dim);line-height:1.45}
+  /* TRÉSORERIE */
+  .tr-accounts{display:flex;flex-direction:column;gap:10px}
+  .tr-card{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;background:var(--char);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:12px;padding:13px}
+  .tr-ic{color:var(--gold)}.tr-ic .ic{width:24px;height:24px}
+  .tr-lbl{font-weight:600;font-size:14px}
+  .tr-bal{font-family:'IBM Plex Mono';font-weight:700;font-size:16px}
+  .tr-totline{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 4px;font-size:14px;color:var(--cream-dim)}
+  .tr-totline b{font-family:'IBM Plex Mono';font-size:20px;color:var(--gold)}
+  .tr-rappro{margin-top:16px}
+  .tr-rap-head{display:flex;justify-content:space-between;align-items:center}
+  .tr-rap-head h3{font-family:'Archivo';font-weight:800;font-size:16px}
+  .tr-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+  .tr-badge.ok{background:var(--gold);color:var(--on-accent)}
+  .tr-badge.ko{background:var(--char2);color:var(--cream-dim);border:1px solid var(--line)}
+  .tr-lines{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+  .tr-lines>div{display:flex;justify-content:space-between;font-size:13px;color:var(--cream-dim)}
+  .tr-lines b{font-family:'IBM Plex Mono';color:var(--cream)}
+  .tr-movs{display:flex;flex-direction:column;gap:6px}
+  .tr-mov{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:pointer}
+  .tr-mov input{width:20px;height:20px;accent-color:var(--gold)}
+  .trm-l{font-size:13px}.trm-a{font-family:'IBM Plex Mono';font-size:13px}
+  .trm-a.pos{color:var(--gold)}.trm-a.neg{color:var(--cream-dim)}
+  /* IDENTITÉ */
+  .id-logo{width:120px;height:120px;border-radius:16px;overflow:hidden;background:var(--char2);border:1px solid var(--line);margin:0 auto 10px}
+  .id-logo img{width:100%;height:100%;object-fit:contain}
+  .id-logo-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--cream-dim);font-size:12px}
+  .id-logo-empty .ic{width:30px;height:30px}
+  /* REÇU (impression) */
+  .rc-head{display:flex;gap:14px;align-items:center;border-bottom:2px solid #C8A23A;padding-bottom:10px;margin-bottom:14px}
+  .rc-logo{width:64px;height:64px;object-fit:contain;flex:0 0 auto}
+  .rc-legal{font-size:11px;color:#555;margin-top:2px}
+  .rc-title{font-family:'Archivo';font-weight:900;font-size:18px;color:#111;margin-bottom:4px}
+  .rc-meta{font-size:12px;color:#555;margin-bottom:12px}
+  .rc-table{width:100%;border-collapse:collapse;font-size:13px;color:#111}
+  .rc-table th,.rc-table td{border-bottom:1px solid #e2e2e2;padding:7px 6px;text-align:left}
+  .rc-table th{font-size:11px;text-transform:uppercase;color:#777}
+  .rc-table .r{text-align:right;font-family:'IBM Plex Mono'}
+  .rc-total{text-align:right;font-family:'IBM Plex Mono';font-weight:700;font-size:17px;color:#111;margin-top:12px}
+  .rc-pay{text-align:right;font-size:12px;color:#555;margin-top:2px}
+  .rc-ment{margin-top:12px;padding:8px 10px;background:#faf6ea;border:1px solid #ece0c0;border-radius:8px;font-size:12px;color:#6b5a2e}
+  /* CATALOGUES */
+  .cat-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .cat-row{display:flex;align-items:center;gap:8px;background:var(--char2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+  .cat-info{flex:1;min-width:0}.cat-n{font-weight:700;font-size:14px}.cat-m{font-size:12px;color:var(--cream-dim)}
+  .cat-b{background:var(--char);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:7px;cursor:pointer;display:inline-flex}
+  .cat-b .ic{width:17px;height:17px}
+  .cat-tools{display:flex;gap:8px;margin:6px 0}
+  .cat-picks{display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow:auto;margin-bottom:8px}
+  .cat-pick{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:pointer}
+  .cat-pick input{width:20px;height:20px;accent-color:var(--gold)}
+  .cp-n{font-size:13.5px}.cp-p{font-family:'IBM Plex Mono';font-size:12px;color:var(--cream-dim)}
+  .ce-btns{margin-top:4px}
+  /* POS (SAISIE CAISSE) */
+  .pos-head{display:flex;gap:8px;margin-bottom:8px}
+  .pos-sel{flex:1;background:var(--field-bg);border:1px solid var(--line);color:var(--cream);border-radius:9px;padding:9px;font-size:13px}
+  .pos-stats{display:flex;gap:10px;margin-bottom:10px}
+  .pos-stats>div{flex:1;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+  .pos-stats span{font-size:11px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.03em;display:block}
+  .pos-stats b{font-family:'IBM Plex Mono';font-size:18px;color:var(--gold)}
+  .pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+  .pos-p{position:relative;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:12px 8px;cursor:pointer;text-align:center;color:var(--cream);min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:3px}
+  .pos-p:active{background:var(--char2)}
+  .pp-n{font-size:12.5px;font-weight:600;line-height:1.2}
+  .pp-pr{font-family:'IBM Plex Mono';font-size:12px;color:var(--gold)}
+  .pp-s{position:absolute;top:5px;right:6px;font-size:10px;font-family:'IBM Plex Mono';color:var(--cream-dim)}
+  .pp-s.low{color:var(--amber)}
+  .pos-ticket{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+  .pos-line{display:grid;grid-template-columns:1fr auto auto 26px;gap:8px;align-items:center;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+  .pl-n{font-size:13px;font-weight:600}
+  .pl-q{display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono'}
+  .pl-b{width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:var(--char);color:var(--cream);font-size:14px;cursor:pointer}
+  .pl-t{font-family:'IBM Plex Mono';font-size:13px}
+  .pl-x{background:none;border:none;color:var(--cream-dim);cursor:pointer;padding:0}.pl-x .ic{width:16px;height:16px}
+  .pos-foot{position:sticky;bottom:0;background:var(--black);border-top:1px solid var(--line);padding-top:10px}
+  .pos-totrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .pos-totrow b{font-family:'IBM Plex Mono';font-size:22px;color:var(--gold)}
+  .pos-payrow{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  .pos-payrow .field{flex:1}
+  .pos-monnaie{flex:1;font-size:13px;font-weight:600;font-family:'IBM Plex Mono'}
+  .pos-monnaie.ok{color:var(--gold)}.pos-monnaie.ko{color:var(--cream-dim)}
+  .pos-btns{display:flex;flex-direction:column}
+  /* ABONNEMENT */
+  .abo-total{display:flex;align-items:baseline;gap:8px;background:var(--char);border:1px solid var(--gold);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .abo-total span:first-child{font-size:13px;color:var(--cream-dim)}
+  .abo-total b{font-family:'IBM Plex Mono';font-size:26px;color:var(--gold);margin-left:auto}
+  .abo-mois{font-size:13px;color:var(--cream-dim)}
+  .abo-lines{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .abo-lines>div{display:flex;justify-content:space-between;font-size:13px;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+  .abo-lines b{font-family:'IBM Plex Mono'}
+  .abo-status{font-size:13px;color:var(--cream-dim);margin-bottom:10px}.abo-status b{color:var(--cream)}
+  /* COMMANDES */
+  .cmd-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch}
+  .cmd-chip{flex:0 0 auto;background:var(--char2);border:1px solid var(--line);color:var(--cream-dim);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .cmd-chip.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold)}
+  .cmd-list{display:flex;flex-direction:column;gap:10px}
+  .cmd-day{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold-dim);font-weight:700;margin:8px 0 2px}
+  .cmd-card{background:var(--char);border:1px solid var(--line);border-radius:13px;padding:13px;border-left:3px solid var(--line)}
+  .cmd-card.s-nouvelle{border-left-color:var(--cream-dim)}
+  .cmd-card.s-confirmee,.cmd-card.s-preparation{border-left-color:var(--gold-dim)}
+  .cmd-card.s-en_route{border-left-color:var(--gold)}
+  .cmd-card.s-livree,.cmd-card.s-payee{border-left-color:var(--gold)}
+  .cmd-card.s-annulee{opacity:.55}
+  .cmd-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+  .cmd-client{font-weight:700;font-size:15px}
+  .cmd-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--char2);color:var(--cream-dim);border:1px solid var(--line)}
+  .cmd-badge.b-en_route,.cmd-badge.b-payee{background:var(--gold);color:var(--on-accent);border-color:var(--gold)}
+  .cmd-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--cream-dim);margin-bottom:6px}
+  .cmd-meta span{display:inline-flex;align-items:center;gap:5px}
+  .cmd-meta .ic{width:15px;height:15px}
+  .cmd-items{font-size:13px;color:var(--cream);margin-bottom:6px}
+  .cmd-total{font-size:14px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .cmd-total .cod{font-size:11px;color:var(--gold);display:inline-flex;align-items:center;gap:4px}
+  .cmd-total .cod .ic{width:15px;height:15px}
+  .cmd-total .paid{font-size:11px;color:var(--cream-dim)}
+  .cmd-stars{color:var(--gold);font-size:13px;margin-bottom:8px;letter-spacing:1px}
+  .cmd-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .cmd-b{display:inline-flex;align-items:center;gap:5px;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:9px;padding:8px 11px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .cmd-b .ic{width:16px;height:16px}
+  .cmd-b.primary{background:var(--gold);color:var(--on-accent);border-color:var(--gold)}
+  .seg3{display:flex;gap:5px}
+  .seg-b{flex:1;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:9px 4px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter'}
+  .seg-b.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold)}
+  .oe-items{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+  .oe-item{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;background:var(--char2);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+  .oei-n{font-size:13px;font-weight:600}.oei-p{font-size:12px;color:var(--cream-dim);font-family:'IBM Plex Mono'}
+  .oei-q{display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono'}
+  .oei-b{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--char);color:var(--cream);font-size:15px;cursor:pointer}
+  .oei-x{background:none;border:none;color:var(--cream-dim);cursor:pointer;padding:2px}.oei-x .ic{width:16px;height:16px}
+  .oe-tot{text-align:right;font-size:14px;margin-top:2px}
+  .stars-pick{display:flex;gap:8px;margin:6px 0}
+  .star-b{background:none;border:none;color:var(--line);cursor:pointer;padding:2px}.star-b .ic{width:32px;height:32px}.star-b.on{color:var(--gold)}
+  /* ICÔNES VECTORIELLES */
+  .ic{width:1.2em;height:1.2em;display:inline-block;vertical-align:-0.18em;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .ti{display:inline-flex;align-items:center;justify-content:center}
+  .tab .ti .ic{width:23px;height:23px}
+  .navlink .ti .ic{width:20px;height:20px}
+  .theme-toggle .ic{width:20px;height:20px}
+  .plus-item{display:flex;align-items:center;gap:11px}
+  .plus-item .ic{width:20px;height:20px;opacity:.95}
+  .vc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .vc-btn .ic{width:16px;height:16px}
+  .lock-ic .ic{width:46px;height:46px;stroke-width:1.4}
+  #ai-send .ic{width:20px;height:20px}
+  .sheet-head .x .ic{width:20px;height:20px}
+  .install-hint{display:flex;align-items:center;gap:8px;justify-content:center;background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13.5px;padding:11px 14px;cursor:pointer}
+  .save-warn{background:var(--char2);color:var(--gold);font-size:12.5px;padding:10px 14px;text-align:center;border-bottom:1px solid var(--line)}
+
+  /* SIDEBAR (grand écran / Fold déplié) */
+  .sidebar{display:none;position:fixed;left:0;top:0;bottom:0;width:230px;background:var(--char);border-right:1px solid var(--line);padding:18px 14px;flex-direction:column;gap:5px;z-index:35}
+  .sb-logo{font-family:'Archivo';font-weight:900;font-size:30px;color:var(--gold);letter-spacing:-.02em;margin:4px 6px 16px}
+  .sb-logo span{color:var(--cream)}
+  .navlink{display:flex;align-items:center;gap:12px;background:none;border:none;color:var(--cream-dim);cursor:pointer;font-family:'Inter';font-size:15px;font-weight:600;padding:12px 12px;border-radius:11px;text-align:left;width:100%}
+  .navlink .ti{font-size:19px}
+  .navlink:hover{background:var(--char)}
+  .navlink.on{background:var(--char2);color:var(--gold)}
+
+  /* CAISSE */
+  .caisse-actions{display:flex;gap:10px;margin-bottom:14px}
+  .ca-btn{flex:1;border:none;border-radius:13px;padding:15px;font-weight:800;font-size:16px;cursor:pointer;font-family:'Archivo'}
+  .ca-btn.vente{background:var(--green);color:var(--on-accent)}
+  .ca-btn.depense{background:var(--char2);color:var(--cream-dim);border:1px solid var(--line)}
+  .caisse-month{display:flex;gap:11px;background:var(--card-accent);border:1px solid var(--gold-dim);border-radius:14px;padding:15px;margin-bottom:11px}
+  .caisse-month>div{flex:1}
+  .cm-k{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);font-weight:700}
+  .cm-v{font-family:'IBM Plex Mono';font-weight:700;font-size:26px;margin-top:3px}
+  .cm-side{text-align:right;border-left:1px solid var(--line);padding-left:11px;flex:0 0 auto}
+  .cm-v2{font-family:'IBM Plex Mono';font-weight:600;font-size:16px;margin-top:3px;color:var(--cream-dim)}
+  .caisse-stats{display:flex;gap:9px;margin-bottom:18px}
+  .cs{flex:1;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:11px}
+  .cs-k{font-size:11px;color:var(--cream-dim);font-weight:600}
+  .cs-v{font-family:'IBM Plex Mono';font-weight:600;font-size:16px;margin-top:4px}
+  .cs-v.pos{color:var(--green)}.cs-v.neg{color:var(--red)}
+  .list-title{font-family:'Archivo';font-weight:800;font-size:14px;margin-bottom:9px}
+  .caisse-list{display:flex;flex-direction:column;gap:7px}
+  .caisse-row{display:grid;grid-template-columns:38px 1fr auto 26px;gap:9px;align-items:center;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+  .cr-ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;background:var(--char2)}
+  .cr-info{min-width:0}
+  .cr-lbl{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cr-date{font-size:11px;color:var(--cream-dim)}
+  .cr-amt{font-family:'IBM Plex Mono';font-weight:700;font-size:14px;white-space:nowrap}
+  .cr-amt.vente{color:var(--green)}.cr-amt.depense{color:var(--red)}
+  .cr-del{background:none;border:none;color:var(--cream-dim);font-size:18px;cursor:pointer;padding:0}
+
+  /* CARNET */
+  .carnet-top{display:flex;gap:11px;align-items:stretch;margin-bottom:15px}
+  .kt-impaye{flex:1;background:var(--card-accent);border:1px solid var(--gold-dim);border-radius:14px;padding:15px}
+  .kt-k{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);font-weight:700}
+  .kt-v{font-family:'IBM Plex Mono';font-weight:700;font-size:28px;margin-top:3px}
+  .kt-n{font-size:12px;color:var(--cream-dim);margin-top:2px}
+  .k-add{flex:0 0 auto;background:var(--gold);color:var(--on-accent);border:none;border-radius:14px;padding:0 18px;font-weight:800;font-size:15px;cursor:pointer;font-family:'Archivo'}
+  .debt-list{display:flex;flex-direction:column;gap:8px}
+  .debt-row{display:grid;grid-template-columns:32px 1fr auto auto;gap:9px;align-items:center;background:var(--char);border:1px solid var(--line);border-radius:12px;padding:10px 11px}
+  .debt-row.paid{opacity:.5}
+  .debt-row.paid .db-name{text-decoration:line-through}
+  .db-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--gold-dim);background:none;color:var(--green);font-weight:900;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+  .db-check.on{background:var(--green);border-color:var(--green);color:var(--on-accent)}
+  .db-info{min-width:0}
+  .db-name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .db-motif{font-size:11.5px;color:var(--cream-dim)}
+  .db-amt{font-family:'IBM Plex Mono';font-weight:700;font-size:14px;color:var(--gold)}
+  .db-actions{display:flex;gap:2px}
+  .db-remind,.db-del{background:none;border:none;font-size:17px;cursor:pointer;padding:4px}
+
+  /* REAL ROW (dashboard) */
+  .real-row{display:flex;gap:9px;margin-bottom:13px}
+  .rb-item{flex:1;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:10px}
+  .rb-k{font-size:10px;text-transform:uppercase;color:var(--cream-dim);font-weight:600;line-height:1.2}
+  .rb-v{font-family:'IBM Plex Mono';font-weight:600;font-size:14px;margin-top:5px}
+  .rb-v.warn{color:var(--amber)}
+
+  /* PLUS sheet */
+  .plus-item{display:block;width:100%;text-align:left;background:var(--char2);border:1px solid var(--line);color:var(--cream);border-radius:11px;padding:14px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:'Inter';margin-bottom:8px}
+  .plus-item.gold{background:var(--gold);color:var(--on-accent);border-color:var(--gold);font-weight:800}
+  .plus-item.danger{color:var(--red);border-color:var(--line)}
+  .plus-note{text-align:center;font-size:11px;color:var(--cream-dim);font-family:'IBM Plex Mono';margin-top:8px}
+
+  /* BOTTOM NAV */
+  .nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:var(--nav-h);background:var(--char);border-top:1px solid var(--line);display:flex;z-index:40;padding-bottom:env(safe-area-inset-bottom)}
+  .tab{flex:1;background:none;border:none;color:var(--cream-dim);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:'Inter';font-size:9.5px;font-weight:600;padding:0 1px}
+  .tab .ti{font-size:19px;line-height:1}
+
+  /* ====== ECRAN LARGE / FOLD DÉPLIÉ ====== */
+  @media (min-width:760px){
+    .sidebar{display:flex}
+    .nav{display:none}
+    .app{max-width:920px;padding-left:230px;padding-bottom:30px}
+    .topbar{padding-left:24px;padding-right:24px}
+    .view{padding:22px 24px}
+    .v-grid{grid-template-columns:1fr 1fr 1fr}
+    .stats{gap:11px}
+    .install-hint{padding-left:246px}
+  }
+  @media (min-width:1040px){
+    .app{max-width:1040px}
+    .v-grid{grid-template-columns:1fr 1fr 1fr 1fr}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  .tab.on{color:var(--gold)}
+
+  /* PROFILE SHEET */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:none}
+  .overlay.on{display:block}
+  .sheet{position:fixed;left:50%;transform:translateX(-50%) translateY(100%);bottom:0;width:100%;max-width:480px;background:var(--char);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding:16px 15px calc(20px + env(safe-area-inset-bottom));transition:transform .25s ease;max-height:80vh;overflow-y:auto}
+  .sheet.on{transform:translateX(-50%) translateY(0)}
+  .sheet-head{display:flex;align-items:center;margin-bottom:12px}
+  .sheet-head h3{font-family:'Archivo';font-weight:800;font-size:17px}
+  .sheet-head .x{margin-left:auto;background:none;border:none;color:var(--cream-dim);font-size:26px;cursor:pointer;line-height:1}
+  .prof-row{display:flex;align-items:center;gap:11px;background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:8px;cursor:pointer}
+  .prof-row.on{border-color:var(--gold)}
+  .prof-row .pr-ic{font-size:22px}
+  .prof-row .pr-info{flex:1;min-width:0}
+  .prof-row .pr-n{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prof-row .pr-m{font-size:11.5px;color:var(--cream-dim)}
+  .prof-row .pr-del{background:none;border:none;font-size:18px;cursor:pointer;padding:5px}
+  .sheet-add{width:100%;background:var(--gold);color:var(--on-accent);border:none;border-radius:12px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Archivo';margin-top:6px}
+  .storage-note{text-align:center;font-size:10.5px;color:var(--cream-dim);font-family:'IBM Plex Mono';margin-top:14px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sb-logo">BOSS<span>.</span></div>
+    <button class="navlink" data-v="dash"><span class="ti" data-ic="dash"></span>Tableau</button>
+    <button class="navlink" data-v="boutique"><span class="ti" data-ic="boutique"></span>Boutique</button>
+    <button class="navlink" data-v="stock"><span class="ti" data-ic="stock"></span>Stock</button>
+    <button class="navlink" data-v="caisse"><span class="ti" data-ic="caisse"></span>Caisse</button>
+    <button class="navlink" data-v="pos"><span class="ti" data-ic="pos"></span>Saisie caisse</button>
+    <button class="navlink" data-v="carnet"><span class="ti" data-ic="carnet"></span>Carnet</button>
+    <button class="navlink" data-v="commandes"><span class="ti" data-ic="commandes"></span>Commandes</button>
+    <button class="navlink" data-v="pieces"><span class="ti" data-ic="doc"></span>Pièces</button>
+    <button class="navlink" data-v="tresorerie"><span class="ti" data-ic="wallet"></span>Trésorerie</button>
+    <button class="navlink" data-v="clients"><span class="ti" data-ic="clients"></span>Clients</button>
+    <button class="navlink" data-v="historique"><span class="ti" data-ic="historique"></span>Historique</button>
+    <button class="navlink" data-v="config"><span class="ti" data-ic="config"></span>Réglages</button>
+    <button class="navlink" data-v="onboard"><span class="ti" data-ic="onboard"></span>Reconfigurer</button>
+    <button class="navlink" id="side-plus"><span class="ti" data-ic="plus_menu"></span>Plus</button>
+  </aside>
+
+  <div class="install-hint" id="install-hint" style="display:none">📲 <span>Installer BOSS sur ton téléphone</span></div>
+  <div class="save-warn" id="save-warn" style="display:none">⚠️ Sauvegarde impossible — exporte tes données depuis « Plus ».</div>
+  <div class="lock-banner" id="lock-banner" style="display:none"></div>
+
+  <div class="topbar">
+    <div class="blogo">BOSS<span class="dot">.</span></div>
+    <button class="theme-toggle" id="theme-toggle" data-ic="theme" title="Clair / sombre"></button>
+    <button class="cloud-badge cb-off" id="cloud-badge" title="Espace en ligne">🔒 Local</button>
+    <button class="profbtn" id="profbtn">
+      <div class="pi"><div class="pn" id="cur-name">…</div><div class="pm" id="cur-metier"></div></div>
+      <span class="car">▾</span>
+    </button>
+  </div>
+
+  <!-- VUE 1 : ONBOARDING -->
+  <div class="view" id="view-onboard">
+    <h2 class="vt">Configure en discutant</h2>
+    <div class="vsub">Réponds aux questions de BOSS. Ton business se règle tout seul.</div>
+    <div class="chatwrap">
+      <div class="chatbar">
+        <div class="av">B</div>
+        <div><div class="nm">BOSS</div><div class="st">en ligne</div></div>
+        <button class="rst" id="chat-restart">↻ Recommencer</button>
+      </div>
+      <div id="chat"></div>
+      <div class="chatinput">
+        <button class="iconbtn" id="chat-mic" title="Parler">🎤</button>
+        <input id="chat-input" placeholder="Écris ta réponse…" autocomplete="off">
+        <button class="iconbtn" id="chat-send" title="Envoyer">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VUE BOUTIQUE / VITRINE -->
+  <div class="view" id="view-boutique">
+    <div class="v-headrow">
+      <div><h2 class="vt">Ma boutique</h2><div class="vsub" style="margin-bottom:0">Photo → l'IA écrit, conseille le prix, tu partages.</div></div>
+      <div class="v-head-actions">
+        <button class="v-share ghost" id="v-pdf" title="Catalogue en PDF"><span class="bi" data-ic="doc"></span>PDF</button>
+        <button class="v-share" id="v-share" title="Partager sur WhatsApp"><span class="bi" data-ic="onboard"></span>Partager</button>
+      </div>
+    </div>
+    <button class="v-add" id="v-add">＋ Ajouter un produit</button>
+    <div class="v-grid" id="v-grid"></div>
+  </div>
+
+  <!-- VUE CAISSE -->
+  <div class="view" id="view-caisse">
+    <h2 class="vt">Ma caisse</h2>
+    <div class="vsub">Enregistre chaque vente et chaque dépense, le vrai argent qui passe.</div>
+    <div class="caisse-actions">
+      <button class="ca-btn vente" id="c-add-vente">＋ Vente</button>
+      <button class="ca-btn depense" id="c-add-depense">－ Dépense</button>
+    </div>
+    <button class="v-add" id="c-open-pos"><span class="bi" data-ic="pos"></span> Ouvrir la saisie caisse (POS)</button>
+    <div class="caisse-month">
+      <div><div class="cm-k">Net ce mois (réel)</div><div class="cm-v" id="c-net">—</div></div>
+      <div class="cm-side"><div class="cm-k">Encaissé ce mois</div><div class="cm-v2" id="c-vmois">—</div></div>
+    </div>
+    <div class="caisse-stats">
+      <div class="cs"><div class="cs-k">Ventes aujourd'hui</div><div class="cs-v pos" id="c-vjour">—</div></div>
+      <div class="cs"><div class="cs-k">Dépenses aujourd'hui</div><div class="cs-v neg" id="c-djour">—</div></div>
+    </div>
+    <h3 class="list-title">Derniers mouvements</h3>
+    <div id="c-list" class="caisse-list"></div>
+  </div>
+
+  <!-- VUE POS (SAISIE CAISSE) -->
+  <div class="view" id="view-pos">
+    <div class="pos-head">
+      <select class="pos-sel" id="pos-caisse"></select>
+      <select class="pos-sel" id="pos-collab"></select>
+    </div>
+    <div class="pos-stats">
+      <div><span>CA du jour</span><b id="pos-ca">0</b></div>
+      <div><span>Volume</span><b id="pos-vol">0</b></div>
+    </div>
+    <input class="field" id="pos-search" placeholder="Rechercher un produit…">
+    <div class="pos-grid" id="pos-grid"></div>
+    <div class="pos-ticket" id="pos-ticket"></div>
+    <div class="pos-foot">
+      <div class="pos-totrow"><span>Total</span><b id="pos-total">0</b></div>
+      <div class="pos-payrow">
+        <input class="field" id="pos-recu" type="number" inputmode="numeric" placeholder="Montant reçu">
+        <div class="pos-monnaie" id="pos-monnaie"></div>
+      </div>
+      <div class="mode-seg" id="pos-canal"><button class="mode-b on" data-c="especes">Espèces</button><button class="mode-b" data-c="banque">Banque</button><button class="mode-b" data-c="mobile">Mobile</button></div>
+      <div class="pos-btns">
+        <button class="sheet-add" id="pos-valider">Valider la vente</button>
+        <button class="plus-item" id="pos-receipt" style="margin-top:8px">Valider &amp; reçu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VUE CARNET -->
+  <div class="view" id="view-carnet">
+    <h2 class="vt">Mon carnet</h2>
+    <div class="vsub">Qui te doit de l'argent — et relance-les en un clic sur WhatsApp.</div>
+    <div class="carnet-top">
+      <div class="kt-impaye"><div class="kt-k">On te doit en tout</div><div class="kt-v" id="k-impaye">—</div><div class="kt-n" id="k-nb"></div></div>
+      <button class="k-add" id="k-add">＋ Dette</button>
+    </div>
+    <div id="k-list" class="debt-list"></div>
+  </div>
+
+  <!-- VUE STOCK -->
+  <div class="view" id="view-stock">
+    <h2 class="vt">Stock</h2>
+    <div class="vsub">Suis tes quantités. Le stock baisse tout seul à chaque vente enregistrée.</div>
+    <div id="st-list" class="stock-list"></div>
+  </div>
+
+  <!-- VUE CLIENTS -->
+  <div class="view" id="view-clients">
+    <div class="v-headrow">
+      <div><h2 class="vt">Mes clients</h2><div class="vsub" style="margin-bottom:0">Ton répertoire, relié au carnet de dettes.</div></div>
+      <button class="v-share" id="cl-add" style="background:var(--gold);color:var(--on-accent)">＋ Client</button>
+    </div>
+    <div id="cl-list" class="client-list"></div>
+  </div>
+
+  <!-- VUE COMMANDES / LIVRAISONS -->
+  <div class="view" id="view-commandes">
+    <div class="v-headrow">
+      <div><h2 class="vt">Commandes &amp; livraisons</h2><div class="vsub" style="margin-bottom:0">Prends, planifie, livre, encaisse, fidélise.</div></div>
+      <button class="v-share" id="cmd-add" style="background:var(--gold);color:var(--on-accent)">＋ Commande</button>
+    </div>
+    <div class="cmd-chips" id="cmd-filters">
+      <button class="cmd-chip on" data-f="today">Aujourd'hui</button>
+      <button class="cmd-chip" data-f="week">7 jours</button>
+      <button class="cmd-chip" data-f="all">En cours</button>
+      <button class="cmd-chip" data-f="done">Terminées</button>
+    </div>
+    <div id="cmd-list" class="cmd-list"></div>
+  </div>
+
+  <!-- VUE PIÈCES COMPTABLES -->
+  <div class="view" id="view-pieces">
+    <div class="v-headrow">
+      <div><h2 class="vt">Pièces comptables</h2><div class="vsub" style="margin-bottom:0">Factures, reçus, quittances — photographiés et triés.</div></div>
+      <div class="v-head-actions">
+        <button class="v-share ghost" id="pc-help" title="Aide"><span class="bi" data-ic="help"></span></button>
+        <button class="v-share" id="pc-add"><span class="bi" data-ic="add"></span>Pièce</button>
+      </div>
+    </div>
+    <div class="pc-filters">
+      <select class="field pc-sel" id="pc-f-type"></select>
+      <select class="field pc-sel" id="pc-f-canal"></select>
+    </div>
+    <div class="cmd-chips" id="pc-periods">
+      <button class="cmd-chip" data-p="jour">Jour</button>
+      <button class="cmd-chip" data-p="semaine">Semaine</button>
+      <button class="cmd-chip on" data-p="mois">Mois</button>
+      <button class="cmd-chip" data-p="trimestre">Trimestre</button>
+      <button class="cmd-chip" data-p="annee">Année</button>
+    </div>
+    <div id="pc-list" class="pc-doclist"></div>
+  </div>
+
+  <!-- VUE TRÉSORERIE & RAPPROCHEMENT -->
+  <div class="view" id="view-tresorerie">
+    <div class="v-headrow">
+      <div><h2 class="vt">Trésorerie</h2><div class="vsub" style="margin-bottom:0">Tes comptes, ton argent en temps réel.</div></div>
+      <button class="v-share ghost" id="tr-opening" title="Soldes initiaux"><span class="bi" data-ic="config"></span></button>
+    </div>
+    <div class="tr-accounts" id="tr-accounts"></div>
+    <div class="tr-totline">Trésorerie totale <b id="tr-total">0</b></div>
+
+    <div class="card tr-rappro">
+      <div class="tr-rap-head"><h3>Rapprochement bancaire</h3><span class="tr-badge" id="tr-badge"></span></div>
+      <div class="ch">Compare tes écritures « Banque » avec ton relevé bancaire. Coche ce qui apparaît sur le relevé.</div>
+      <div class="pf-lbl">Solde du relevé bancaire</div>
+      <input class="field" id="tr-stmt" type="number" inputmode="numeric" placeholder="0">
+      <div class="tr-lines">
+        <div><span>Solde comptable</span><b id="tr-recorded">0</b></div>
+        <div><span>Solde pointé</span><b id="tr-pointed">0</b></div>
+        <div><span>Écart</span><b id="tr-ecart">0</b></div>
+      </div>
+      <div class="pf-lbl">Mouvements bancaires</div>
+      <div id="tr-movs" class="tr-movs"></div>
+    </div>
+  </div>
+
+  <!-- VUE HISTORIQUE -->
+  <div class="view" id="view-historique">
+    <h2 class="vt">Historique</h2>
+    <div class="vsub">Tes ventes et dépenses, mois par mois (depuis ta caisse).</div>
+    <div class="card" id="h-chart"></div>
+    <div class="h-table-head"><span>Mois</span><span>Ventes</span><span>Dépenses</span><span>Net</span></div>
+    <div id="h-table" class="h-table"></div>
+  </div>
+
+  <!-- VUE 2 : CONFIG MANUELLE -->
+  <div class="view" id="view-config">
+    <h2 class="vt">Réglages</h2>
+    <div class="vsub">Tout est modifiable à la main, ligne par ligne.</div>
+
+    <div class="card">
+      <h3>🏷️ Ton business</h3>
+      <input class="field" id="cfg-name" placeholder="Nom du business">
+      <div class="ch" style="margin:8px 0 8px">Ton métier :</div>
+      <div class="chips" id="cfg-metiers"></div>
+      <div class="unite">Tu comptes en <b id="cfg-unite"></b></div>
+    </div>
+
+    <div class="card">
+      <h3>💰 Ce qui rentre — tes ventes</h3>
+      <div class="ch">Prix de vente · quantité par mois · ce que chaque unité te coûte.</div>
+      <div class="lhead"><span>Désignation</span><span>Prix</span><span>Qté/mois</span><span>Coût/u.</span><span></span></div>
+      <div class="lines" id="cfg-rev"></div>
+      <button class="addbtn" id="cfg-addrev">+ Ajouter une vente</button>
+    </div>
+
+    <div class="card">
+      <h3>🧾 Ce qui sort — charges fixes</h3>
+      <div class="ch">Loyer, salaires, électricité… ce qui tombe chaque mois.</div>
+      <div class="chhead"><span>Charge</span><span>Montant/mois</span><span></span></div>
+      <div class="lines" id="cfg-charge"></div>
+      <button class="addbtn" id="cfg-addcharge">+ Ajouter une charge</button>
+    </div>
+
+    <div class="card">
+      <h3>🎯 La marge que tu veux</h3>
+      <div class="ch">Ce que tu veux garder sur chaque vente, après coût et part de charges.</div>
+      <div class="target"><div class="tval" id="cfg-targetval">30 %</div><input type="range" id="cfg-target" min="5" max="80" value="30"></div>
+    </div>
+
+    <div class="card">
+      <h3>🧮 TVA / impôts <span class="tag-ind">indicatif</span></h3>
+      <div class="ch">Pour estimer la TVA collectée. Ce n'est pas une déclaration officielle.</div>
+      <label class="switch-row"><span>Activer le calcul de TVA</span><input type="checkbox" id="cfg-tva-enabled"></label>
+      <div class="pf-row" style="margin-top:8px">
+        <div><div class="pf-lbl">Taux (%)</div><input class="field" id="cfg-tva-rate" type="number" inputmode="numeric" value="18"></div>
+        <div><div class="pf-lbl">&nbsp;</div><label class="switch-row mini"><span>Mes prix sont TTC</span><input type="checkbox" id="cfg-tva-ttc" checked></label></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VUE 3 : DASHBOARD -->
+  <div class="view" id="view-dash">
+    <h2 class="vt">Tableau de bord</h2>
+    <div class="vsub">Tes vrais chiffres, mis à jour en direct.</div>
+
+    <div class="hero">
+      <div class="lbl">Ton vrai bénéfice / mois</div>
+      <div class="big" id="d-net">—</div>
+      <div class="note" id="d-netnote"></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">Ventes (CA)</div><div class="v" id="d-ca">—</div></div>
+      <div class="stat"><div class="k">Marge brute</div><div class="v" id="d-mb">—</div><div class="pct" id="d-mbpct"></div></div>
+      <div class="stat"><div class="k">Charges fixes</div><div class="v" id="d-cf">—</div></div>
+    </div>
+    <div class="real-row" id="d-real"></div>
+    <div class="seuil">
+      <h3>Seuil de rentabilité</h3>
+      <div class="stxt" id="d-seuiltxt">—</div>
+      <div class="gauge"><div class="gfill" id="d-gfill" style="width:0%"></div></div>
+      <div class="glabels"><span>0</span><span id="d-gca"></span></div>
+    </div>
+    <div class="coach">
+      <h3>👑 Coach BOSS</h3>
+      <ul id="d-coach"></ul>
+    </div>
+    <div class="priceblock">
+      <h3>Le prix juste</h3>
+      <div class="sl">Coût de revient réel et prix conseillé pour ta marge.</div>
+      <div id="d-prices"></div>
+    </div>
+    <div class="aibox">
+      <h3>💬 Demande au Coach</h3>
+      <div class="sl">Pose une question sur ton business, en français ou en nouchi.</div>
+      <div class="ai-quicks">
+        <button class="ai-quick">Comment gagner plus ?</button>
+        <button class="ai-quick">Quel produit je dois pousser ?</button>
+        <button class="ai-quick">Mes charges sont-elles trop élevées ?</button>
+      </div>
+      <div id="ai-log"></div>
+      <div class="airow"><input id="ai-input" placeholder="Ta question…" autocomplete="off"><button id="ai-send" data-ic="send" aria-label="Envoyer"></button></div>
+    </div>
+    <div class="storage-note" id="storage-note"></div>
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <button class="tab" data-v="boutique"><span class="ti" data-ic="boutique"></span>Boutique</button>
+    <button class="tab" data-v="caisse"><span class="ti" data-ic="caisse"></span>Caisse</button>
+    <button class="tab" data-v="commandes"><span class="ti" data-ic="commandes"></span>Commandes</button>
+    <button class="tab" data-v="dash"><span class="ti" data-ic="dash"></span>Tableau</button>
+    <button class="tab" id="tab-plus"><span class="ti" data-ic="plus_menu"></span>Plus</button>
+  </nav>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet"></div>
+<div id="print-area" aria-hidden="true"></div>
+<div class="lock-screen" id="lock-screen" style="display:none">
+  <div class="lock-card">
+    <div class="lock-ic" data-ic="lock"></div>
+    <h2>Application verrouillée</h2>
+    <p id="lock-msg">Ta période d'utilisation est terminée.</p>
+    <div class="lock-amt" id="lock-amt"></div>
+    <div class="lock-dev">Ton code appareil :<br><b id="lock-device">—</b></div>
+    <input class="field" id="lock-code" placeholder="Saisis le code de déverrouillage">
+    <button class="sheet-add" id="lock-unlock">Déverrouiller</button>
+    <div class="lock-err" id="lock-err"></div>
+    <button class="lock-admin" id="lock-admin">Espace administrateur</button>
+  </div>
+</div>
+
+<script>/*__SUPABASE_CONFIG__*/</script>
+<script>/*__BOSSNET__*/</script>
+<script>/*__ENGINE__*/</script>
+<script>/*__UI__*/</script>
+</body>
+</html>

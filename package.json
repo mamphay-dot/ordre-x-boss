@@ -1,0 +1,14 @@
+{
+  "name": "boss",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BOSS — C'est toi le boss. Application de gestion mobile pour micro-entrepreneurs (PWA hors-ligne).",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node run-tests.js",
+    "release": "node build.js && node run-tests.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}
