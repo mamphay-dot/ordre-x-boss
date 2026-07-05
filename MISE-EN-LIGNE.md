@@ -9,9 +9,22 @@ multi-appareils avec Supabase (Postgres + Auth + Realtime).
 
 | Ressource | URL |
 |---|---|
-| App publique | https://mamphay-dot.github.io/ordre-x-boss/ |
+| **App publique** | **https://mamphay-dot.github.io/ordre-x-boss/** ✅ en ligne |
 | Repo GitHub | https://github.com/mamphay-dot/ordre-x-boss |
-| Projet Supabase | *(à renseigner après création du projet — voir §2)* |
+| Projet Supabase | https://supabase.com/dashboard/project/jqgogwydfncfidcuqcbb |
+| DB URL | `https://jqgogwydfncfidcuqcbb.supabase.co` |
+| Organisation Supabase | Groupe Thorium (Free plan) |
+| Région | **Europe Centrale (Francfort)** `eu-central-1` |
+
+## État actuel (au 2026-07-05)
+
+- ✅ Repo GitHub public créé, remote git corrigé (pointait à tort vers burger-national-erp).
+- ✅ Projet Supabase provisionné : compte lié à `mamphay-dot@github`, org « Groupe Thorium ».
+- ✅ Schéma SQL appliqué : 5 tables (`organizations`, `memberships`, `profiles`, `invitations`, `license_state`), RLS activé partout, 2 fonctions RPC (`create_organization`, `accept_invitation`), Realtime activé sur `profiles` + `memberships` + `license_state`.
+- ✅ Clé publishable Supabase injectée dans le build (`.env.local` gitignored).
+- ✅ GitHub Pages actif sur `/docs` (auto-deploy à chaque `git push`).
+- ✅ Test de santé : `GET /rest/v1/organizations` renvoie 200 (RLS bloque = 0 ligne visible sans auth ⇒ comportement attendu).
+- ⏭️ **Prochaine étape** : le patron ouvre l'app, clique « 👤 Se connecter », crée son compte, crée son org, invite ses collaborateurs.
 
 ---
 
