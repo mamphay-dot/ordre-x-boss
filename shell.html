@@ -3,6 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- ============ SÉCURITÉ : en-têtes stricts via meta ============ -->
+<!-- CSP : autorise seulement soi-même + Google Fonts + Supabase. Bloque tout script inline autre que le nôtre, tout iframe, tout eval. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline';
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src 'self' https://fonts.gstatic.com data:;
+  img-src 'self' data: blob:;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://text.pollinations.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai;
+  frame-ancestors 'none';
+  base-uri 'self';
+  form-action 'self';
+  object-src 'none';
+  manifest-src 'self';
+  worker-src 'self';
+  upgrade-insecure-requests;
+">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()">
 <meta name="theme-color" content="#0E0E0F">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -261,6 +281,13 @@
   .theme-toggle{background:var(--char2);border:1px solid var(--line);color:var(--cream);width:38px;height:38px;border-radius:11px;font-size:18px;cursor:pointer;flex:0 0 auto}
   .lock-banner{background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13px;padding:11px 14px;text-align:center;cursor:pointer;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+  .idle-lock{position:fixed;inset:0;z-index:250;background:rgba(8,8,10,.98);display:none;align-items:center;justify-content:center;padding:24px}
+  .idle-lock-box{background:var(--char);border:1px solid var(--line);border-radius:16px;padding:26px 22px;max-width:340px;width:100%;text-align:center}
+  .idle-lock-icon{color:var(--gold);margin-bottom:14px}
+  .idle-lock-icon .ic{width:42px;height:42px;stroke-width:1.5}
+  .idle-lock-title{font-family:'Archivo';font-weight:800;font-size:20px;color:var(--cream)}
+  .idle-lock-sub{color:var(--cream-dim);font-size:13.5px;margin:6px 0 14px 0;line-height:1.5}
+  .idle-lock-err{color:#f96;font-size:13px;margin-top:8px;min-height:18px}
   .lock-screen{position:fixed;inset:0;z-index:200;background:rgba(8,8,10,.97);display:flex;align-items:center;justify-content:center;padding:24px}
   .lock-card{max-width:380px;width:100%;background:var(--char);border:1px solid var(--line);border-radius:18px;padding:26px 22px;text-align:center}
   .lock-ic{font-size:46px;margin-bottom:8px}

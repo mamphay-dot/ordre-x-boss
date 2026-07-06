@@ -29,6 +29,61 @@ const IDB=(function(){
   };
 })();
 
+/* ---------- Chiffrement AES-GCM des données à disque ----------
+   Clé aléatoire 256 bits, stockée uniquement dans IndexedDB (jamais
+   dans localStorage). Encapsule state complet + queue. Défense contre
+   fuite localStorage / backup non-chiffré du navigateur. */
+const BossCrypto=(function(){
+  const KEY_NAME="boss:crypto:key:v1";
+  const VER_PREFIX="v1:";
+  let CachedKey=null;
+  function subtle(){
+    if(typeof crypto!=="undefined" && crypto.subtle) return crypto.subtle;
+    return null;
+  }
+  async function getOrCreateKey(){
+    if(CachedKey) return CachedKey;
+    const s = subtle(); if(!s) return null;
+    try{
+      let stored = null;
+      try{ stored = await IDB.get(KEY_NAME); }catch(_){}
+      if(stored){
+        CachedKey = await s.importKey("jwk", stored, {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
+        return CachedKey;
+      }
+      const k = await s.generateKey({name:"AES-GCM",length:256}, true, ["encrypt","decrypt"]);
+      const jwk = await s.exportKey("jwk", k);
+      await IDB.set(KEY_NAME, jwk);
+      CachedKey = k;
+      return k;
+    }catch(_){ return null; }
+  }
+  function b64(u8){ let s=""; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s); }
+  function unb64(str){ const bin=atob(str); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+  async function encrypt(plain){
+    const s = subtle(); const k = await getOrCreateKey(); if(!s||!k) return null;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const buf = await s.encrypt({name:"AES-GCM", iv}, k, new TextEncoder().encode(plain));
+    return VER_PREFIX + b64(iv) + "." + b64(new Uint8Array(buf));
+  }
+  async function decrypt(cipher){
+    const s = subtle(); const k = await getOrCreateKey(); if(!s||!k) return null;
+    if(!cipher || cipher.indexOf(VER_PREFIX)!==0) return null;
+    const rest = cipher.slice(VER_PREFIX.length);
+    const idx = rest.indexOf("."); if(idx<0) return null;
+    const iv = unb64(rest.slice(0, idx));
+    const data = unb64(rest.slice(idx+1));
+    const buf = await s.decrypt({name:"AES-GCM", iv}, k, data);
+    return new TextDecoder().decode(buf);
+  }
+  function looksEncrypted(v){ return typeof v==="string" && v.indexOf(VER_PREFIX)===0; }
+  async function wipeKey(){ try{ await IDB.set(KEY_NAME, null); CachedKey=null; }catch(_){} }
+  return { encrypt, decrypt, looksEncrypted, wipeKey, available: () => !!subtle() };
+})();
+
+/* Clés sensibles chiffrées à disque (business, sessions, files d'attente). */
+const ENCRYPTED_KEYS = new Set(["boss:state:v1","boss.session.v1","boss.queue.v1"]);
+
 /* ---------- Couche de stockage (persiste hors de Claude) ---------- */
 const Store={
   mem:{}, mode:"memory",
@@ -39,7 +94,7 @@ const Store={
     try{ if(typeof localStorage!=="undefined"){ localStorage.setItem("__t","1"); localStorage.removeItem("__t"); this.mode="local"; return; } }catch(e){}
     this.mode="memory";
   },
-  async get(k){
+  async _rawGet(k){
     try{
       if(this.mode==="artifact"){ const r=await window.storage.get(k); return r?r.value:null; }
       if(this.mode==="idb"){ return await IDB.get(k); }
@@ -47,7 +102,7 @@ const Store={
     }catch(e){}
     return this.mem[k]!=null?this.mem[k]:null;
   },
-  async set(k,v){
+  async _rawSet(k,v){
     this.mem[k]=v;
     try{
       if(this.mode==="artifact"){ await window.storage.set(k,v,false); return true; }
@@ -56,11 +111,84 @@ const Store={
     }catch(e){ return false; }
     return true;
   },
+  async get(k){
+    const raw = await this._rawGet(k);
+    if(raw==null) return null;
+    if(!ENCRYPTED_KEYS.has(k)) return raw;
+    if(!BossCrypto.available()) return raw;
+    // Legacy plaintext (compatibilité v1) : renvoyé tel quel, re-chiffré au prochain set()
+    if(!BossCrypto.looksEncrypted(raw)) return raw;
+    try { const dec = await BossCrypto.decrypt(raw); return dec!=null?dec:raw; }
+    catch(_){ return raw; }
+  },
+  async set(k,v){
+    if(ENCRYPTED_KEYS.has(k) && BossCrypto.available() && typeof v==="string" && v){
+      try { const enc = await BossCrypto.encrypt(v); if(enc) return this._rawSet(k, enc); }
+      catch(_){ /* repli en clair */ }
+    }
+    return this._rawSet(k, v);
+  },
   label(){ return {artifact:"Sauvegarde Claude",idb:"Sauvegarde sur l'appareil",local:"Sauvegarde locale",memory:"Session uniquement"}[this.mode]; }
 };
 const KEY="boss:state:v1";
 let state={profiles:{},currentId:null};
-async function persist(){ state.updatedAt=Date.now(); const c=cur(); if(c) c.updatedAt=state.updatedAt; const okSave=await Store.set(KEY, JSON.stringify(state)); if(okSave===false){ flashSaveWarning(); } scheduleSync(); scheduleCloudPush(); }
+async function persist(){
+  state.updatedAt=Date.now();
+  const c=cur();
+  if(c){ c.updatedAt=state.updatedAt; if(typeof sanitizeProfile==="function") sanitizeProfile(c); }
+  const okSave=await Store.set(KEY, JSON.stringify(state));
+  if(okSave===false){ flashSaveWarning(); }
+  scheduleSync(); scheduleCloudPush();
+}
+/* Nettoyage anti-DoS et anti-injection appliqué à chaque sauvegarde.
+   Bornes strictes sur longueurs de texte et amplitude des montants. */
+function sanitizeProfile(p){
+  if(!p) return;
+  const MAX_NAME=60, MAX_ADDR=200, MAX_TXT=500, MAX_AMT=1e10;
+  const clean = (v, max) => typeof sanitizeStr==="function" ? sanitizeStr(v, max) : (v==null?"":String(v).slice(0, max));
+  const num = (v, lim) => { const n = parseFloat(v); if(!isFinite(n) || isNaN(n)) return 0; return Math.max(-lim, Math.min(lim, n)); };
+  if(p.name) p.name = clean(p.name, MAX_NAME);
+  if(p.unite) p.unite = clean(p.unite, 30);
+  if(p.identite){
+    p.identite.rccm = clean(p.identite.rccm, 30);
+    p.identite.ncc = clean(p.identite.ncc, 30);
+    p.identite.adresse = clean(p.identite.adresse, MAX_ADDR);
+    p.identite.tel = clean(p.identite.tel, 40);
+    p.identite.email = clean(p.identite.email, 120);
+    p.identite.slogan = clean(p.identite.slogan, 120);
+    p.identite.mentions = clean(p.identite.mentions, MAX_TXT);
+  }
+  (p.revenus||[]).forEach(r=>{
+    if(!r) return;
+    r.nom = clean(r.nom, MAX_NAME);
+    r.desc = clean(r.desc||"", MAX_TXT);
+    r.prix = num(r.prix, MAX_AMT);
+    r.cout = num(r.cout, MAX_AMT);
+    r.qte = num(r.qte, MAX_AMT);
+    if(typeof r.stock==="number") r.stock = num(r.stock, MAX_AMT);
+    if(r.photo && typeof safeImgUrl==="function" && !safeImgUrl(r.photo)) r.photo = null;
+  });
+  (p.charges||[]).forEach(c=>{ if(!c) return; c.nom = clean(c.nom, MAX_NAME); c.montant = num(c.montant, MAX_AMT); });
+  (p.carnet||[]).forEach(c=>{ if(!c) return; c.client = clean(c.client, MAX_NAME); c.motif = clean(c.motif||"", MAX_NAME); c.montant = num(c.montant, MAX_AMT); });
+  (p.clients||[]).forEach(c=>{ if(!c) return; c.nom = clean(c.nom, MAX_NAME); c.phone = clean(c.phone||"", 40); c.adresse = clean(c.adresse||"", MAX_ADDR); c.note = clean(c.note||"", MAX_TXT); });
+  (p.commandes||[]).forEach(o=>{
+    if(!o) return;
+    o.clientNom = clean(o.clientNom, MAX_NAME);
+    o.clientPhone = clean(o.clientPhone||"", 40);
+    o.adresse = clean(o.adresse||"", MAX_ADDR);
+    o.note = clean(o.note||"", MAX_TXT);
+    o.total = num(o.total, MAX_AMT);
+    (o.items||[]).forEach(it=>{ if(!it) return; it.nom = clean(it.nom, MAX_NAME); it.prix = num(it.prix, MAX_AMT); it.qty = num(it.qty, MAX_AMT); });
+  });
+  (p.pieces||[]).forEach(pc=>{ if(!pc) return; pc.tiers = clean(pc.tiers||"", MAX_NAME); pc.note = clean(pc.note||"", MAX_TXT); pc.montant = num(pc.montant, MAX_AMT); if(pc.photo && typeof safeImgUrl==="function" && !safeImgUrl(pc.photo)) pc.photo = null; });
+  (p.collaborateurs||[]).forEach(co=>{ if(!co) return; co.nom = clean(co.nom||"", MAX_NAME); });
+  (p.caisses||[]).forEach(k=>{ if(!k) return; k.nom = clean(k.nom||"", MAX_NAME); });
+  (p.caisse||[]).forEach(e=>{ if(!e) return; e.montant = num(e.montant, MAX_AMT); if(e.motif) e.motif = clean(e.motif, MAX_TXT); });
+  if(p.tresorerie && p.tresorerie.soldes){
+    ["especes","banque","mobile"].forEach(k=>{ p.tresorerie.soldes[k] = num(p.tresorerie.soldes[k], MAX_AMT); });
+  }
+  if(typeof p.target === "number") p.target = Math.max(0, Math.min(90, p.target));
+}
 let __cloudTimer=null;
 function scheduleCloudPush(){
   if(typeof Cloud === "undefined") return;
@@ -465,9 +593,10 @@ function renderVitrine(){
   }
   prods.forEach((r,i)=>{
     const card=el("div","vcard");
-    const img = r.photo
-      ? `<div class="vc-img" style="background-image:url('${r.photo}')"></div>`
-      : `<div class="vc-img noimg">${(r.nom||"?").slice(0,1).toUpperCase()}</div>`;
+    const safePhoto = safeImgUrl(r.photo);
+    const img = safePhoto
+      ? `<div class="vc-img" style="background-image:url('${safePhoto}')"></div>`
+      : `<div class="vc-img noimg">${escapeHtml((r.nom||"?").slice(0,1).toUpperCase())}</div>`;
     card.innerHTML=`${img}
       <div class="vc-body">
         <div class="vc-top"><div class="vc-name">${escapeHtml(r.nom)}</div><div class="vc-price">${BOSS.fmtF(r.prix)}</div></div>
@@ -801,6 +930,7 @@ function openPlus(){
     <button class="plus-item" id="pl-appearance">${ic("theme")} Apparence (thème & couleur)</button>
     <button class="plus-item" id="pl-sync">${ic("sync")} Synchronisation entre appareils</button>
     <button class="plus-item" id="pl-admin">${ic("admin")} Espace administrateur</button>
+    <button class="plus-item" id="pl-lock">${ic("lock")} Verrouiller BOSS maintenant</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
     <button class="plus-item" id="pl-help">${ic("help")} Aide & tutoriel</button>
@@ -831,6 +961,7 @@ function openPlus(){
   $("#pl-sync").onclick=()=>{ openSync(); };
   $("#pl-appearance").onclick=()=>{ openAppearance(); };
   $("#pl-admin").onclick=()=>{ openAdmin(); };
+  const pll=$("#pl-lock"); if(pll) pll.onclick=()=>{ closeSheet(); IdleLock.forceLockNow(); };
   $("#pl-onboard").onclick=()=>{ closeSheet(); showView("onboard"); startOnboard(); };
   $("#pl-ai").onclick=()=>{ openAISettings(); };
   $("#pl-config").onclick=()=>{ closeSheet(); showView("config"); };
@@ -2348,6 +2479,72 @@ function openAppearance(){
 /* ============ LICENCE / VERROUILLAGE ============ */
 function genDeviceId(){ return "BOSS-"+Math.random().toString(36).slice(2,6).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase(); }
 function metiersCount(){ return Math.max(1,Object.keys(state.profiles).length); }
+/* ============ VERROU DE SESSION (inactivité) ============
+   Après N minutes sans interaction, l'app se verrouille. Il faut
+   saisir un code (PIN admin OU mot de passe cloud) pour rouvrir.
+   Empêche l'accès physique opportuniste à un téléphone déverrouillé.
+*/
+const IdleLock=(function(){
+  const IDLE_MS_DEFAULT = 15*60*1000; // 15 min
+  let lastActivity = Date.now();
+  let timer = null;
+  let locked = false;
+  function idleMs(){ return (state.security && state.security.idleMs) || IDLE_MS_DEFAULT; }
+  function isEnabled(){ return !(state.security && state.security.idleLock===false) && !!state.admin?.pin; }
+  function bump(){ lastActivity = Date.now(); }
+  function start(){
+    if(timer) return;
+    ["mousemove","keydown","touchstart","click","scroll","visibilitychange"].forEach(ev=>{
+      try{ document.addEventListener(ev, bump, {passive:true, capture:true}); }catch(_){}
+    });
+    timer = setInterval(check, 20000);
+  }
+  function check(){
+    if(locked) return;
+    if(!isEnabled()) return;
+    if(Date.now() - lastActivity >= idleMs()) lock();
+  }
+  function lock(){
+    if(locked) return;
+    if(!state.admin?.pin){ return; } // pas de PIN, pas de verrou
+    locked = true;
+    let ov = document.getElementById("idle-lock");
+    if(!ov){
+      ov = document.createElement("div");
+      ov.id = "idle-lock";
+      ov.className = "idle-lock";
+      ov.innerHTML = `
+        <div class="idle-lock-box">
+          <div class="idle-lock-icon">${ic("lock")}</div>
+          <div class="idle-lock-title">BOSS est verrouillée</div>
+          <div class="idle-lock-sub">Inactivité — saisis ton code administrateur pour rouvrir.</div>
+          <input class="field" id="idle-lock-code" type="password" inputmode="numeric" autocomplete="off" placeholder="Code administrateur">
+          <button class="sheet-add" id="idle-lock-go">Déverrouiller</button>
+          <div class="idle-lock-err" id="idle-lock-err"></div>
+        </div>`;
+      document.body.appendChild(ov);
+    }
+    ov.style.display = "flex";
+    setTimeout(()=>{ const i=document.getElementById("idle-lock-code"); i && i.focus(); }, 100);
+    document.getElementById("idle-lock-go").onclick = tryUnlock;
+    document.getElementById("idle-lock-code").onkeydown = e=>{ if(e.key==="Enter") tryUnlock(); };
+  }
+  function tryUnlock(){
+    const code = document.getElementById("idle-lock-code").value;
+    const err = document.getElementById("idle-lock-err");
+    if(String(code) === String(state.admin.pin)){
+      err.textContent = "";
+      document.getElementById("idle-lock").style.display = "none";
+      document.getElementById("idle-lock-code").value = "";
+      locked = false;
+      bump();
+    } else {
+      err.textContent = "Code incorrect.";
+    }
+  }
+  function forceLockNow(){ if(!state.admin?.pin){ alert("Crée d'abord un code administrateur (Plus → Espace administrateur)."); return; } lock(); }
+  return { start, forceLockNow, isLocked: ()=>locked, bump };
+})();
 function enforceLicense(){
   if(!state.license) return true;
   const st=BOSS.licenseStatus(state.license,metiersCount(),Date.now());
@@ -2693,7 +2890,23 @@ async function askCoach(q){
 
 /* ---------- utils ---------- */
 function escapeHtml(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-function escapeAttr(s){return escapeHtml(s).replace(/"/g,"&quot;");}
+function escapeAttr(s){return escapeHtml(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+/* URL image sûre : uniquement data:image/* ou blob: — bloque javascript:, data:text/html:, etc. */
+function safeImgUrl(u){
+  if(!u || typeof u !== "string") return "";
+  const s = u.trim();
+  if(/^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(s)) return s.replace(/[\r\n"'<>()]/g,"");
+  if(/^blob:/i.test(s)) return s.replace(/[\r\n"'<>()]/g,"");
+  return "";
+}
+/* Nettoyage caractères de contrôle Unicode (empêche injection RTLO, zero-width, etc.) */
+function sanitizeStr(s, maxLen){
+  if(s==null) return "";
+  let x = String(s);
+  x = x.replace(/[\x00-\x1F\x7F-\x9F​-‏‪-‮⁠-⁤⁦-⁩﻿]/g, "");
+  if(maxLen && x.length>maxLen) x = x.slice(0, maxLen);
+  return x;
+}
 function fmtDate(ts){
   try{
     const d=new Date(ts), now=new Date();
@@ -2777,6 +2990,7 @@ window.addEventListener("DOMContentLoaded",async()=>{
   renderIcons();
   renderTopbar();
   enforceLicense();
+  IdleLock.start();
   const p=cur();
   if(!p.revenus.length && !p.charges.length && !(p.caisse||[]).length){ startOnboard(); showView("onboard"); }
   else { refreshAll(); showView("dash"); }
