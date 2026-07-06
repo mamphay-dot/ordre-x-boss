@@ -259,7 +259,7 @@ function conversationStep(conv, userText, profile){
       break;
     }
     default:
-      done=true; bot="C'est bon patron, ton business est prêt ✅";
+      done=true; bot="C'est bon BOSS, ton business est prêt ✅";
   }
   return {bot, events:ev, done, patch};
 }
@@ -321,7 +321,7 @@ function paymentRequestText(operator,amount,product,seller){
     (product?`Pour : ${product}\n`:"")+
     `Montant : ${fmtF(amount)}\n`+
     `Vendeur : ${seller||"BOSS"}\n\n`+
-    `Fais le transfert ${operator} puis confirme ici. Merci patron 🙏`;
+    `Fais le transfert ${operator} puis confirme ici. Merci BOSS 🙏`;
 }
 
 /* ---------- CAISSE (ventes/dépenses réelles, datées) ---------- */

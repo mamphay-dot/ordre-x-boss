@@ -344,7 +344,7 @@ async function aiComplete(messages,system,maxTokens){
 }
 function aiOnboardSystem(){
   const metiers=BOSS.METIER_ORDER.join(", ");
-  return "Tu es l'assistant de configuration de BOSS, une app de gestion pour micro-entrepreneurs d'Afrique de l'Ouest francophone. Pose UNE question simple à la fois, en français clair et chaleureux (nouchi ivoirien bienvenu), en FCFA, pour comprendre le business et le configurer.\n"
+  return "Tu es l'assistant de gestion de BOSS, une app pour micro-entrepreneurs d'Afrique de l'Ouest francophone. Tu t'adresses toujours à l'utilisateur en l'appelant « BOSS » (jamais « patron », jamais son prénom). Pose UNE question simple à la fois, en français clair et chaleureux (nouchi ivoirien bienvenu), en FCFA, pour comprendre le business et le configurer.\n"
    +"Découvre : le type d'activité, le nom du business, les principaux produits/services avec leur PRIX de vente (et si possible le coût et le stock), et les grosses charges fixes (loyer, etc.).\n"
    +"À CHAQUE réponse de l'utilisateur, réponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour, de la forme :\n"
    +'{"reply":"ta prochaine question ou confirmation, courte","patch":{"name":"...","metier":"un parmi: '+metiers+'","unite":"...","addProducts":[{"nom":"...","prix":0,"cout":0,"stock":0}],"addCharges":[{"nom":"...","montant":0}],"target":30},"done":false}\n'
@@ -353,8 +353,8 @@ function aiOnboardSystem(){
 function onboardDone(p){
   const f=BOSS.computeFinancials(p);
   const msg=f.seuilCA>0
-    ? `C'est bon patron, ton business est prêt ✅ Tu dois faire environ ${BOSS.fmtF(f.seuilCA)} de ventes par mois pour ne rien perdre. Regarde ton tableau de bord 👇`
-    : `C'est bon patron, ton business est prêt ✅ Ajuste tes chiffres dans Réglages quand tu veux. Regarde ton tableau de bord 👇`;
+    ? `C'est bon BOSS, ton business est prêt ✅ Tu dois faire environ ${BOSS.fmtF(f.seuilCA)} de ventes par mois pour ne rien perdre. Regarde ton tableau de bord 👇`
+    : `C'est bon BOSS, ton business est prêt ✅ Ajuste tes chiffres dans Réglages quand tu veux. Regarde ton tableau de bord 👇`;
   setTimeout(()=>{ botSay(msg); const go=el("button","chat-cta","Voir mon tableau de bord"); go.onclick=()=>showView("dash"); setTimeout(()=>{$("#chat").appendChild(go);$("#chat").scrollTop=$("#chat").scrollHeight;},700); },600);
   refreshAll(); renderTopbar();
 }
@@ -362,16 +362,16 @@ function startOnboard(){
   conv=BOSS.startConversation();
   aiTurns=[]; aiDisabledForSession=false;
   $("#chat").innerHTML="";
-  botSay("Bonjour patron 👋 Je suis ton assistant BOSS. Dis-moi, tu fais quoi comme business ?");
+  botSay("Bonjour BOSS 👋 Je suis ton assistant de gestion. Dis-moi, tu fais quoi comme business ?");
   $("#chat-input").value="";
   $("#chat-input").focus&&$("#chat-input").focus();
 }
 function bubble(cls,html){ const b=el("div","bub "+cls,html); $("#chat").appendChild(b); $("#chat").scrollTop=$("#chat").scrollHeight; return b; }
 function botSay(text){
   const typing=bubble("b typing","<span class='dots'><i></i><i></i><i></i></span>");
-  setTimeout(()=>{ typing.classList.remove("typing"); typing.innerHTML=`<div class="who">BOSS</div>${escapeHtml(text)}`; $("#chat").scrollTop=$("#chat").scrollHeight; },450);
+  setTimeout(()=>{ typing.classList.remove("typing"); typing.innerHTML=`<div class="who">ASSISTANT</div>${escapeHtml(text)}`; $("#chat").scrollTop=$("#chat").scrollHeight; },450);
 }
-function userSay(text){ bubble("u",`<div class="who">Toi</div>${escapeHtml(text)}`); }
+function userSay(text){ bubble("u",`<div class="who">BOSS</div>${escapeHtml(text)}`); }
 function configChip(text){ const c=el("div","cfg-chip",`⚙️ ${escapeHtml(text)} <span class="tick">✓</span>`); $("#chat").appendChild(c); $("#chat").scrollTop=$("#chat").scrollHeight; }
 
 async function handleUser(text){
