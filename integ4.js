@@ -50,6 +50,8 @@ const rootVar=n=>doc.documentElement.style.getPropertyValue(n).trim();
   console.log("=== ADMIN : tarification + génération de code ===");
   q("#tab-plus").dispatchEvent(new w.Event("click"));await wait(80);
   q("#pl-admin").dispatchEvent(new w.Event("click"));await wait(120); // prompt -> "1234" crée le PIN
+  // Nouveau : le panel admin s'ouvre sur l'onglet Aperçu. On bascule sur Licence.
+  const licTab=doc.querySelector('.admin-tab[data-t="licence"]'); if(licTab){ licTab.dispatchEvent(new w.Event("click")); await wait(80); }
   ok(q("#ad-base"),"console admin ouverte");
   q("#ad-trial").value="90"; q("#ad-base").value="5000"; q("#ad-extra").value="2000";
   q("#ad-savecfg").dispatchEvent(new w.Event("click"));await wait(100);

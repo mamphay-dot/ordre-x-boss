@@ -31,6 +31,25 @@
   .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px}
   .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1}
   .blogo .dot{color:var(--cream)}
+  .admin-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:-6px 0 10px 0;scrollbar-width:none}
+  .admin-tabs::-webkit-scrollbar{display:none}
+  .admin-tab{background:var(--char);color:var(--cream);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
+  .admin-tab.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold)}
+  .ad-card{background:var(--char);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+  .ad-card.ad-danger{border-color:#a34}
+  .ad-card-title{font-family:'Archivo';font-weight:700;font-size:13px;color:var(--gold);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+  .ad-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2);font-size:14px}
+  .ad-row:last-child{border-bottom:none}
+  .ad-row span{color:var(--cream-dim)}
+  .ad-mem-row,.ad-inv-row,.ad-biz-row{background:var(--char2);border-radius:8px;padding:10px 12px;margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13.5px}
+  .ad-mem-info,.ad-biz-info{display:flex;flex-direction:column;gap:2px}
+  .ad-mem-role{color:var(--cream-dim);font-size:12px}
+  .ai-provs{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .ai-prov{display:block;background:var(--char2);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;color:var(--cream);font-size:13.5px;line-height:1.4}
+  .ai-prov input{margin-right:6px;vertical-align:middle}
+  .ai-prov.on{border-color:var(--gold);background:rgba(200,162,58,.08)}
+  .ai-prov b{font-weight:700;font-size:14px}
+  .ai-prov-sub{color:var(--cream-dim);font-size:12px;display:block;margin-top:2px}
   .cloud-badge{background:var(--char);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--cream);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
   .cloud-badge .ic{width:14px;height:14px}
   .cloud-badge.cb-off{color:var(--cream)}
@@ -39,9 +58,9 @@
   .cloud-badge.cb-warn{color:#e08;border-color:#e08}
   .cloud-badge.cb-err{color:#e33;border-color:#e33}
   .cl-mem-row,.cl-inv-row{background:var(--char2);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:13px}
-  .profbtn{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:7px 11px;cursor:pointer;max-width:62%}
+  .profbtn{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--char);border:1px solid var(--line);border-radius:11px;padding:7px 11px;cursor:pointer;max-width:62%;color:var(--cream)}
   .profbtn .pi{min-width:0}
-  .profbtn .pn{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profbtn .pn{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cream)}
   .profbtn .pm{font-size:11px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:5px}
   .profbtn .pm .ic{width:13px;height:13px}
   .profbtn .car{color:var(--gold);font-size:11px}
@@ -456,7 +475,12 @@
   .lock-ic .ic{width:46px;height:46px;stroke-width:1.4}
   #ai-send .ic{width:20px;height:20px}
   .sheet-head .x .ic{width:20px;height:20px}
-  .install-hint{display:flex;align-items:center;gap:8px;justify-content:center;background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13.5px;padding:11px 14px;cursor:pointer}
+  .install-hint{display:flex;align-items:center;gap:10px;justify-content:center;background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13.5px;padding:11px 14px;cursor:pointer;position:relative}
+  .install-hint .ic{width:18px;height:18px}
+  .install-hint .install-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--on-accent);font-size:22px;font-weight:700;line-height:1;width:32px;height:32px;border-radius:50%;cursor:pointer;opacity:.7}
+  .install-hint .install-x:hover{opacity:1;background:rgba(0,0,0,.1)}
+  .ins-steps{margin:8px 0 6px 20px;padding:0;color:var(--cream);font-size:14px;line-height:1.6}
+  .ins-steps li{margin-bottom:6px}
   .save-warn{background:var(--char2);color:var(--gold);font-size:12.5px;padding:10px 14px;text-align:center;border-bottom:1px solid var(--line)}
 
   /* SIDEBAR (grand écran / Fold déplié) */
@@ -557,11 +581,16 @@
   .sheet{position:fixed;left:50%;transform:translateX(-50%) translateY(100%);bottom:0;width:100%;max-width:480px;background:var(--char);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding:16px 15px calc(20px + env(safe-area-inset-bottom));transition:transform .25s ease;max-height:80vh;overflow-y:auto}
   .sheet.on{transform:translateX(-50%) translateY(0)}
   .sheet-head{display:flex;align-items:center;margin-bottom:12px}
-  .sheet-head h3{font-family:'Archivo';font-weight:800;font-size:17px}
+  .sheet-head h3{font-family:'Archivo';font-weight:800;font-size:17px;display:inline-flex;align-items:center;gap:8px}
+  .sheet-head h3 .ic{width:20px;height:20px;color:var(--gold)}
+  .sheet-add .ic{width:16px;height:16px;vertical-align:-3px;margin-right:4px}
   .sheet-head .x{margin-left:auto;background:none;border:none;color:var(--cream-dim);font-size:26px;cursor:pointer;line-height:1}
   .prof-row{display:flex;align-items:center;gap:11px;background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:8px;cursor:pointer}
   .prof-row.on{border-color:var(--gold)}
-  .prof-row .pr-ic{font-size:22px}
+  .prof-row .pr-ic{font-size:22px;color:var(--gold);display:flex;align-items:center;justify-content:center;width:26px;height:26px}
+  .prof-row .pr-ic .ic{width:22px;height:22px}
+  .prof-row.on .pr-ic{color:var(--gold)}
+  .prof-row .pr-del .ic{width:18px;height:18px;color:var(--cream-dim)}
   .prof-row .pr-info{flex:1;min-width:0}
   .prof-row .pr-n{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .prof-row .pr-m{font-size:11.5px;color:var(--cream-dim)}
@@ -591,7 +620,11 @@
     <button class="navlink" id="side-plus"><span class="ti" data-ic="plus_menu"></span>Plus</button>
   </aside>
 
-  <div class="install-hint" id="install-hint" style="display:none">📲 <span>Installer BOSS sur ton téléphone</span></div>
+  <div class="install-hint" id="install-hint" style="display:none">
+    <span data-ic="install"></span>
+    <span id="install-hint-text">Installer BOSS sur ton téléphone</span>
+    <button class="install-x" id="install-hint-dismiss" title="Plus tard">×</button>
+  </div>
   <div class="save-warn" id="save-warn" style="display:none">⚠️ Sauvegarde impossible — exporte tes données depuis « Plus ».</div>
   <div class="lock-banner" id="lock-banner" style="display:none"></div>
 

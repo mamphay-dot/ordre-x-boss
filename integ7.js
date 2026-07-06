@@ -19,6 +19,10 @@ const dom=new JSDOM(html,{runScripts:"dangerously",pretendToBeVisual:true,url:"h
         const obj=aiReplies[Math.min(aiCall,aiReplies.length-1)]; aiCall++;
         return Promise.resolve({ok:true,json:()=>Promise.resolve({content:[{type:"text",text:JSON.stringify(obj)}]})});
       }
+      if(url.includes("pollinations")){
+        const obj=aiReplies[Math.min(aiCall,aiReplies.length-1)]; aiCall++;
+        return Promise.resolve({ok:true,text:()=>Promise.resolve(JSON.stringify(obj)),json:()=>Promise.resolve(obj)});
+      }
       return Promise.reject(new Error("offline"));
     };
     w.onerror=(m,s,l,c,e)=>errors.push(String(e||m));

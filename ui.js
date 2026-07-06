@@ -78,7 +78,8 @@ async function restore(){
   if(!state.deviceId){ state.deviceId=genDeviceId(); created=true; }
   if(!state.license){ state.license=BOSS.defaultLicense(); created=true; }
   if(!state.admin){ state.admin={role:"proprietaire"}; created=true; }
-  if(!state.ai){ state.ai={url:"",key:"",model:"claude-sonnet-4-6",enabled:true}; created=true; }
+  if(!state.ai){ state.ai={url:"",key:"",model:"openai",enabled:true,provider:"pollinations"}; created=true; }
+  else if(!state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
   if(!state.currentId || !state.profiles[state.currentId]){
     const p=BOSS.blankProfile("Mon business");
     state.profiles[p.id]=p; state.currentId=p.id; created=true;
@@ -125,10 +126,11 @@ function openProfiles(){
   sheet.appendChild(head);
   Object.values(state.profiles).forEach(p=>{
     const m=BOSS.METIERS[p.metier];
+    const icName=METIER_IC[p.metier]||"boutique";
     const row=el("div","prof-row"+(p.id===state.currentId?" on":""));
-    row.innerHTML=`<div class="pr-ic">${m?m.ic:"🏷️"}</div>
+    row.innerHTML=`<div class="pr-ic">${ic(icName)}</div>
       <div class="pr-info"><div class="pr-n">${escapeHtml(p.name)}</div><div class="pr-m">${m?m.name:""}</div></div>
-      ${Object.keys(state.profiles).length>1?`<button class="pr-del" data-id="${p.id}" title="Supprimer">🗑️</button>`:""}`;
+      ${Object.keys(state.profiles).length>1?`<button class="pr-del" data-id="${p.id}" title="Supprimer">${ic("del")}</button>`:""}`;
     row.querySelector(".pr-info").onclick=async()=>{state.currentId=p.id;await persist();closeSheet();refreshAll();};
     row.querySelector(".pr-ic").onclick=row.querySelector(".pr-info").onclick;
     const del=row.querySelector(".pr-del");
@@ -154,20 +156,63 @@ let conv=null;
 let aiTurns=[], aiDisabledForSession=false;
 
 /* ============ ASSISTANT IA ============ */
+/* 3 providers pris en charge :
+   - pollinations : gratuit, sans clé, sans compte (par défaut).
+   - anthropic    : clé et modèle Claude à fournir (avancé).
+   - openai       : URL compatible OpenAI + clé (Groq, OpenRouter, …).
+*/
 async function aiComplete(messages,system,maxTokens){
   const cfg=state.ai||{};
   if(cfg.enabled===false) return null;
-  const url=(cfg.url&&cfg.url.trim())||"https://api.anthropic.com/v1/messages";
-  const body={model:cfg.model||"claude-sonnet-4-6",max_tokens:maxTokens||700,messages};
-  if(system) body.system=system;
-  const headers={"Content-Type":"application/json"};
-  if(cfg.key){ headers["Authorization"]="Bearer "+cfg.key; headers["x-api-key"]=cfg.key; headers["anthropic-version"]="2023-06-01"; }
-  try{
-    const resp=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
-    if(!resp.ok) return null;
-    const data=await resp.json();
-    return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim()||null;
-  }catch(e){ return null; }
+  const provider=cfg.provider||"pollinations";
+
+  // Provider POLLINATIONS (gratuit, aucun compte)
+  if(provider==="pollinations"){
+    const msgs=(system?[{role:"system",content:system}]:[]).concat(messages||[]);
+    const body={ messages: msgs, model: cfg.model||"openai", private:true, seed: Math.floor(Math.random()*1e6) };
+    try{
+      const resp=await fetch("https://text.pollinations.ai/", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
+      });
+      if(!resp.ok) return null;
+      const txt=await resp.text();
+      // Pollinations renvoie du texte brut ; certains modèles enveloppent en JSON
+      try{ const j=JSON.parse(txt); return (j.choices?.[0]?.message?.content)||j.content||txt; }
+      catch(_){ return txt.trim()||null; }
+    }catch(e){ return null; }
+  }
+
+  // Provider ANTHROPIC (Claude direct)
+  if(provider==="anthropic"){
+    const url=(cfg.url&&cfg.url.trim())||"https://api.anthropic.com/v1/messages";
+    const body={model:cfg.model||"claude-sonnet-4-5",max_tokens:maxTokens||700,messages};
+    if(system) body.system=system;
+    const headers={"Content-Type":"application/json"};
+    if(cfg.key){ headers["x-api-key"]=cfg.key; headers["anthropic-version"]="2023-06-01"; }
+    try{
+      const resp=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
+      if(!resp.ok) return null;
+      const data=await resp.json();
+      return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim()||null;
+    }catch(e){ return null; }
+  }
+
+  // Provider OPENAI-compatible (Groq, OpenRouter, Together…)
+  if(provider==="openai"){
+    const url=(cfg.url&&cfg.url.trim())||"https://api.groq.com/openai/v1/chat/completions";
+    const msgs=(system?[{role:"system",content:system}]:[]).concat(messages||[]);
+    const body={model:cfg.model||"llama-3.1-8b-instant",messages:msgs,max_tokens:maxTokens||700};
+    const headers={"Content-Type":"application/json"};
+    if(cfg.key) headers["Authorization"]="Bearer "+cfg.key;
+    try{
+      const resp=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
+      if(!resp.ok) return null;
+      const data=await resp.json();
+      return data.choices?.[0]?.message?.content||null;
+    }catch(e){ return null; }
+  }
+
+  return null;
 }
 function aiOnboardSystem(){
   const metiers=BOSS.METIER_ORDER.join(", ");
@@ -823,13 +868,70 @@ function importBackup(e){
 /* ---------- INSTALLATION (PWA) ---------- */
 let deferredInstall=null;
 function isStandalone(){ try{ return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone===true; }catch(e){ return false; } }
+function isIOS(){ const ua=navigator.userAgent||""; return /iPhone|iPad|iPod/.test(ua) && !window.MSStream; }
+function isSafariiOS(){ return isIOS() && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); }
+function installDismissedAt(){ try{ return parseInt(localStorage.getItem("boss.install.dismissed")||"0",10); }catch(_){ return 0; } }
+function markInstallDismissed(){ try{ localStorage.setItem("boss.install.dismissed", String(Date.now())); }catch(_){} }
+
 async function doInstall(){
-  if(!deferredInstall){ alert("Pour installer : menu de Chrome (⋮) → « Ajouter à l'écran d'accueil »."); return; }
-  deferredInstall.prompt();
-  try{ await deferredInstall.userChoice; }catch(e){}
-  deferredInstall=null; updateInstallHint();
+  if(deferredInstall){
+    deferredInstall.prompt();
+    try{ await deferredInstall.userChoice; }catch(e){}
+    deferredInstall=null; updateInstallHint();
+    return;
+  }
+  // iOS Safari : instructions manuelles
+  if(isSafariiOS()){
+    showIOSInstallSheet();
+    return;
+  }
+  // Autres navigateurs : instructions génériques
+  showManualInstallSheet();
 }
-function updateInstallHint(){ const h=$("#install-hint"); if(h){ h.style.display=(deferredInstall&&!isStandalone())?"flex":"none"; } }
+
+function showIOSInstallSheet(){
+  const sheet=$("#sheet");
+  sheet.innerHTML=`<div class="sheet-head"><h3>Installer BOSS sur iPhone</h3><button class="x" id="sheet-close" data-ic="close"></button></div>
+    <div class="ps-note">Safari ne propose pas d'installation automatique. C'est 3 clics à la main :</div>
+    <ol class="ins-steps">
+      <li>Appuie sur l'icône <b>Partager</b> ⬆️ en bas de l'écran (le carré avec la flèche vers le haut).</li>
+      <li>Descends dans la liste et tape <b>« Sur l'écran d'accueil »</b>.</li>
+      <li>Confirme <b>« Ajouter »</b> en haut à droite.</li>
+    </ol>
+    <div class="ps-note">Une icône BOSS apparaît sur ton écran d'accueil. Ouvre-la comme n'importe quelle app.</div>
+    <button class="sheet-add" id="ins-ok">Compris</button>`;
+  renderIcons(sheet);
+  $("#sheet-close").onclick=closeSheet;
+  $("#ins-ok").onclick=closeSheet;
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+function showManualInstallSheet(){
+  const sheet=$("#sheet");
+  sheet.innerHTML=`<div class="sheet-head"><h3>Installer BOSS</h3><button class="x" id="sheet-close" data-ic="close"></button></div>
+    <div class="ps-note">Ce navigateur ne propose pas d'install automatique. Ouvre son menu :</div>
+    <ul class="ins-steps">
+      <li><b>Chrome, Edge, Brave</b> : menu <b>⋮</b> → <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.</li>
+      <li><b>Samsung Internet</b> : menu <b>☰</b> → <b>« Ajouter la page à »</b> → <b>« Écran d'accueil »</b>.</li>
+      <li><b>Firefox</b> : menu <b>⋮</b> → <b>« Installer »</b>.</li>
+    </ul>
+    <button class="sheet-add" id="ins-ok">Compris</button>`;
+  renderIcons(sheet);
+  $("#sheet-close").onclick=closeSheet;
+  $("#ins-ok").onclick=closeSheet;
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function updateInstallHint(){
+  const h=$("#install-hint"); if(!h) return;
+  if(isStandalone()){ h.style.display="none"; return; }
+  // Bannière : masquée si utilisateur l'a rejetée dans les 7 derniers jours
+  const dismissed=installDismissedAt();
+  const daysSince=(Date.now()-dismissed)/86400000;
+  const recentlyDismissed=(dismissed>0 && daysSince<7);
+  // On l'affiche si install-prompt dispo, OU sur iOS Safari (jamais d'install-prompt), OU premier boot
+  const canShow=deferredInstall || isSafariiOS() || dismissed===0;
+  h.style.display=(canShow && !recentlyDismissed)?"flex":"none";
+}
 
 /* ---------- STOCK ---------- */
 function renderStock(){
@@ -1205,7 +1307,7 @@ function refreshCloudBadge(){
 /* ============ ÉCRAN AUTH / ORG / COLLABORATEURS ============ */
 async function openCloudSheet(){
   const sheet=$("#sheet"); sheet.innerHTML="";
-  const head=el("div","sheet-head","<h3>☁️ Espace en ligne</h3><button class='x' id='sheet-close'>×</button>");
+  const head=el("div","sheet-head",`<h3>${ic("cloud")} Espace en ligne</h3><button class='x' id='sheet-close'>×</button>`);
   sheet.appendChild(head);
   $("#sheet-close").onclick=closeSheet;
 
@@ -1221,46 +1323,99 @@ async function openCloudSheet(){
   const u = Cloud.user();
 
   if(!Cloud.session()){
-    // Vue login/signup
-    sheet.appendChild(el("div","ps-note","Connecte-toi pour synchroniser tes données entre tes téléphones et inviter des collaborateurs."));
-    const emailInp=el("input","field"); emailInp.id="cl-email"; emailInp.type="email"; emailInp.placeholder="ton.email@exemple.com";
+    // Vue login/signup — magic link par défaut, mot de passe en repli
+    sheet.appendChild(el("div","ps-note",
+      "Synchronise tes données entre tes téléphones, sauvegarde-les en ligne, invite tes collaborateurs. <b>Gratuit</b>."));
+
     sheet.appendChild(el("div","pf-lbl","Ton adresse email"));
+    const emailInp=el("input","field"); emailInp.id="cl-email"; emailInp.type="email"; emailInp.autocomplete="email";
+    emailInp.placeholder="ton.email@exemple.com";
     sheet.appendChild(emailInp);
-    const pwInp=el("input","field"); pwInp.id="cl-pw"; pwInp.type="password"; pwInp.placeholder="Mot de passe (6 caractères min)";
-    sheet.appendChild(el("div","pf-lbl","Mot de passe"));
-    sheet.appendChild(pwInp);
-    const btnSignin=el("button","sheet-add","Se connecter"); btnSignin.id="cl-signin";
-    sheet.appendChild(btnSignin);
-    const btnSignup=el("button","plus-item","Créer un compte"); btnSignup.id="cl-signup"; btnSignup.style.marginTop="8px";
-    sheet.appendChild(btnSignup);
-    const btnMagic=el("button","plus-item","Recevoir un lien par email (sans mot de passe)"); btnMagic.id="cl-magic"; btnMagic.style.marginTop="8px";
+
+    const btnMagic=el("button","sheet-add",ic("send")+" Recevoir un lien par email");
+    btnMagic.id="cl-magic";
     sheet.appendChild(btnMagic);
+
+    sheet.appendChild(el("div","ps-note",
+      "On t'envoie un lien à cliquer — pas de mot de passe à retenir. C'est la méthode la plus simple, et la plus sûre."));
+
     const status=el("div","ps-note"); status.id="cl-status"; status.style.marginTop="10px";
     sheet.appendChild(status);
-    const setStatus = (t,ok)=>{ status.textContent=t; status.style.color = ok===false?"#e08":ok===true?"#0a6":""; };
-    btnSignin.onclick=async()=>{
-      const email=$("#cl-email").value.trim(); const pw=$("#cl-pw").value;
-      if(!email||!pw){ setStatus("Email et mot de passe requis",false); return; }
-      setStatus("Connexion…");
-      try{ await Cloud.signInPassword(email, pw); setStatus("Connecté ✅",true); setTimeout(openCloudSheet,600); }
-      catch(e){ setStatus("Échec : "+(e.message||"vérifie tes identifiants"),false); }
+
+    // Zone repliée : mot de passe (pour ceux qui préfèrent)
+    const toggle=el("button","plus-item","J'ai déjà un mot de passe ▾");
+    toggle.style.marginTop="16px";
+    sheet.appendChild(toggle);
+
+    const pwBlock=el("div","cl-pw-block");
+    pwBlock.style.display="none";
+    pwBlock.innerHTML=`
+      <div class="pf-lbl" style="margin-top:12px">Mot de passe (6 caractères minimum)</div>
+      <input class="field" id="cl-pw" type="password" autocomplete="current-password" placeholder="Ton mot de passe">
+      <button class="sheet-add" id="cl-signin" style="margin-top:8px">Se connecter</button>
+      <button class="plus-item" id="cl-signup" style="margin-top:8px">Créer un compte avec mot de passe</button>`;
+    sheet.appendChild(pwBlock);
+
+    toggle.onclick=()=>{
+      const shown=pwBlock.style.display==="block";
+      pwBlock.style.display=shown?"none":"block";
+      toggle.textContent=shown?"J'ai déjà un mot de passe ▾":"J'ai déjà un mot de passe ▴";
     };
-    btnSignup.onclick=async()=>{
-      const email=$("#cl-email").value.trim(); const pw=$("#cl-pw").value;
-      if(!email||!pw||pw.length<6){ setStatus("Email et mot de passe 6+ caractères requis",false); return; }
-      setStatus("Création…");
-      try{ const r=await Cloud.signUp(email, pw);
-        if(Cloud.session()){ setStatus("Compte créé ✅",true); setTimeout(openCloudSheet,600); }
-        else setStatus("Compte créé. Vérifie ton email et clique le lien de confirmation.",true);
-      }catch(e){ setStatus("Échec : "+(e.message||"e-mail invalide ou déjà utilisé"),false); }
-    };
+
+    function validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+    function setStatus(t,ok){
+      const s=$("#cl-status"); if(!s) return;
+      s.innerHTML=t;
+      s.style.color = ok===false?"#f96":ok===true?"#7c7":"";
+    }
+
     btnMagic.onclick=async()=>{
       const email=$("#cl-email").value.trim();
-      if(!email){ setStatus("Email requis",false); return; }
-      setStatus("Envoi du lien…");
-      try{ await Cloud.sendMagicLink(email); setStatus("Lien envoyé à "+email+" ✅",true); }
-      catch(e){ setStatus("Échec : "+(e.message||"e-mail invalide"),false); }
+      if(!validEmail(email)){ setStatus("Cette adresse email n'a pas l'air correcte",false); return; }
+      setStatus("Envoi du lien en cours…");
+      btnMagic.disabled=true;
+      try{
+        await Cloud.sendMagicLink(email);
+        setStatus("✅ Lien envoyé à <b>"+escapeHtml(email)+"</b>.<br>Ouvre ta boîte email (regarde aussi les spams) et clique sur le lien. L'app se connectera automatiquement.",true);
+      }catch(e){
+        const msg=(e.message||"").toLowerCase();
+        if(msg.includes("rate")) setStatus("Trop de tentatives. Attends 1 minute et réessaie.",false);
+        else setStatus("Échec de l'envoi : "+(e.message||"vérifie ton adresse email"),false);
+        btnMagic.disabled=false;
+      }
     };
+
+    setTimeout(()=>{
+      const s=$("#cl-signin"); const su=$("#cl-signup");
+      if(s) s.onclick=async()=>{
+        const email=$("#cl-email").value.trim(); const pw=$("#cl-pw").value;
+        if(!validEmail(email)){ setStatus("Email invalide",false); return; }
+        if(!pw){ setStatus("Entre ton mot de passe",false); return; }
+        setStatus("Connexion…");
+        try{ await Cloud.signInPassword(email, pw); setStatus("✅ Connecté",true); setTimeout(openCloudSheet,700); }
+        catch(e){
+          const m=(e.message||"").toLowerCase();
+          if(m.includes("invalid") || m.includes("credentials")) setStatus("Email ou mot de passe incorrect. Essaie plutôt le lien par email.",false);
+          else setStatus("Échec : "+(e.message||"réessaie"),false);
+        }
+      };
+      if(su) su.onclick=async()=>{
+        const email=$("#cl-email").value.trim(); const pw=$("#cl-pw").value;
+        if(!validEmail(email)){ setStatus("Email invalide",false); return; }
+        if(!pw || pw.length<6){ setStatus("Mot de passe : 6 caractères minimum",false); return; }
+        setStatus("Création du compte…");
+        try{
+          await Cloud.signUp(email, pw);
+          if(Cloud.session()){ setStatus("✅ Compte créé et connecté",true); setTimeout(openCloudSheet,700); }
+          else setStatus("✅ Compte créé.<br>Vérifie ton email pour confirmer, puis reviens ici.",true);
+        }catch(e){
+          const m=(e.message||"").toLowerCase();
+          if(m.includes("already") || m.includes("registered")) setStatus("Cet email est déjà utilisé. Utilise « Se connecter » ou le lien par email.",false);
+          else setStatus("Échec : "+(e.message||"réessaie"),false);
+        }
+      };
+    },0);
+
     $("#overlay").classList.add("on"); sheet.classList.add("on");
     return;
   }
@@ -1367,21 +1522,90 @@ async function openCloudSheet(){
 
 /* ============ RÉGLAGES ASSISTANT IA ============ */
 function openAISettings(){
-  const a=state.ai||{}; const sheet=$("#sheet");
+  const a=state.ai||{provider:"pollinations",enabled:true};
+  const prov=a.provider||"pollinations";
+  const sheet=$("#sheet");
   sheet.innerHTML=`<div class="sheet-head"><h3>Assistant IA</h3><button class="x" id="sheet-close" data-ic="close"></button></div>
-    <div class="ps-note">L'assistant pose des questions et configure ton business automatiquement. Pour qu'il fonctionne dans l'app installée, branche ton <b>point d'accès IA</b> (un proxy qui parle à l'API). Sans ça, BOSS bascule sur le <b>mode guidé</b> (questions automatiques, 100% hors-ligne).</div>
+    <div class="ps-note">Ton assistant IA t'aide à configurer ton business, analyser tes chiffres et écrire des messages clients. Choisis un fournisseur :</div>
+
     <label class="switch-row"><span>Activer l'assistant IA</span><input type="checkbox" id="ai-enabled" ${a.enabled!==false?"checked":""}></label>
-    <div class="pf-lbl">Adresse du point d'accès (proxy)</div>
-    <input class="field" id="ai-url" placeholder="https://ton-proxy/v1/messages" value="${escapeAttr(a.url||"")}">
-    <div class="pf-lbl">Clé / jeton (optionnel)</div>
-    <input class="field" id="ai-key" placeholder="sk-… ou jeton du proxy" value="${escapeAttr(a.key||"")}">
-    <div class="pf-lbl">Modèle</div>
-    <input class="field" id="ai-model" placeholder="claude-sonnet-4-6" value="${escapeAttr(a.model||"claude-sonnet-4-6")}">
-    <button class="sheet-add" id="ai-save">Enregistrer</button>
-    <div class="ps-note">⚠️ Ne mets jamais une clé d'API secrète dans une app distribuée au public : passe par un proxy côté serveur. Voir le guide « back-end ».</div>`;
+
+    <div class="pf-lbl">Fournisseur</div>
+    <div class="ai-provs">
+      <label class="ai-prov ${prov==='pollinations'?'on':''}"><input type="radio" name="ai-prov" value="pollinations" ${prov==='pollinations'?'checked':''}>
+        <b>Gratuit — sans compte</b><br>
+        <span class="ai-prov-sub">Aucune clé, aucune configuration. Marche tout de suite (limité en volume).</span>
+      </label>
+      <label class="ai-prov ${prov==='openai'?'on':''}"><input type="radio" name="ai-prov" value="openai" ${prov==='openai'?'checked':''}>
+        <b>OpenAI / Groq / OpenRouter</b><br>
+        <span class="ai-prov-sub">Ton propre compte (Groq offre 14 000 requêtes/jour gratuites).</span>
+      </label>
+      <label class="ai-prov ${prov==='anthropic'?'on':''}"><input type="radio" name="ai-prov" value="anthropic" ${prov==='anthropic'?'checked':''}>
+        <b>Anthropic Claude</b><br>
+        <span class="ai-prov-sub">Ton propre compte Anthropic (payant).</span>
+      </label>
+    </div>
+
+    <div id="ai-adv-openai" style="display:${prov==='openai'?'block':'none'}">
+      <div class="pf-lbl">URL du point d'accès (compatible OpenAI)</div>
+      <input class="field" id="ai-url-o" placeholder="https://api.groq.com/openai/v1/chat/completions" value="${escapeAttr(a.url||'')}">
+      <div class="pf-lbl">Clé API</div>
+      <input class="field" id="ai-key-o" type="password" placeholder="gsk_… (Groq) ou sk-… (OpenAI)" value="${escapeAttr(a.key||'')}">
+      <div class="pf-lbl">Modèle</div>
+      <input class="field" id="ai-model-o" placeholder="llama-3.1-8b-instant" value="${escapeAttr(a.model||'llama-3.1-8b-instant')}">
+      <div class="ps-note">📖 Créer une clé Groq gratuite : <b>console.groq.com</b> → API Keys → Create.</div>
+    </div>
+
+    <div id="ai-adv-anthropic" style="display:${prov==='anthropic'?'block':'none'}">
+      <div class="pf-lbl">Clé API Anthropic</div>
+      <input class="field" id="ai-key-a" type="password" placeholder="sk-ant-…" value="${escapeAttr(a.key||'')}">
+      <div class="pf-lbl">Modèle</div>
+      <input class="field" id="ai-model-a" placeholder="claude-sonnet-4-5" value="${escapeAttr(a.model||'claude-sonnet-4-5')}">
+      <div class="ps-note">⚠️ Une clé Anthropic mise dans une PWA publique est visible par tout utilisateur — préfère un proxy si tu partages l'app.</div>
+    </div>
+
+    <div id="ai-adv-pollinations" style="display:${prov==='pollinations'?'block':'none'}">
+      <div class="pf-lbl">Modèle</div>
+      <select class="field" id="ai-model-p">
+        <option value="openai" ${(a.model||'openai')==='openai'?'selected':''}>openai (rapide, généraliste)</option>
+        <option value="mistral" ${a.model==='mistral'?'selected':''}>mistral (français propre)</option>
+        <option value="llama" ${a.model==='llama'?'selected':''}>llama (open source)</option>
+      </select>
+      <div class="ps-note">Aucune donnée ne transite chez BOSS ; tout va directement chez le fournisseur choisi.</div>
+    </div>
+
+    <button class="sheet-add" id="ai-save">Enregistrer</button>`;
   renderIcons(sheet);
   $("#sheet-close").onclick=closeSheet;
-  $("#ai-save").onclick=async()=>{ state.ai={enabled:$("#ai-enabled").checked, url:$("#ai-url").value.trim(), key:$("#ai-key").value.trim(), model:$("#ai-model").value.trim()||"claude-sonnet-4-6"}; await persist(); closeSheet(); };
+
+  function refreshBlocks(){
+    const cur=sheet.querySelector('input[name="ai-prov"]:checked')?.value||"pollinations";
+    sheet.querySelectorAll('.ai-prov').forEach(x=>x.classList.toggle('on',x.querySelector('input')?.value===cur));
+    ["pollinations","openai","anthropic"].forEach(p=>{
+      const box=sheet.querySelector('#ai-adv-'+p);
+      if(box) box.style.display=(cur===p?'block':'none');
+    });
+  }
+  sheet.querySelectorAll('input[name="ai-prov"]').forEach(i=>i.onchange=refreshBlocks);
+
+  $("#ai-save").onclick=async()=>{
+    const enabled=$("#ai-enabled").checked;
+    const provider=sheet.querySelector('input[name="ai-prov"]:checked')?.value||"pollinations";
+    let url="", key="", model="";
+    if(provider==="openai"){
+      url=$("#ai-url-o").value.trim();
+      key=$("#ai-key-o").value.trim();
+      model=$("#ai-model-o").value.trim()||"llama-3.1-8b-instant";
+    } else if(provider==="anthropic"){
+      key=$("#ai-key-a").value.trim();
+      model=$("#ai-model-a").value.trim()||"claude-sonnet-4-5";
+    } else {
+      model=$("#ai-model-p").value||"openai";
+    }
+    state.ai={enabled,provider,url,key,model};
+    await persist();
+    closeSheet();
+  };
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 
@@ -2182,37 +2406,271 @@ function openAdmin(){
   else { const p=prompt("Code administrateur :"); if(String(p)!==String(state.admin.pin)){ alert("Code incorrect."); return; } }
   adminPanel();
 }
+let __adminTab="apercu";
 function adminPanel(){
-  const lic=state.license; const sheet=$("#sheet");
-  let roleOpts=""; Object.entries(BOSS.ROLES).forEach(([k,v])=>{ roleOpts+=`<option value="${k}" ${state.admin.role===k?"selected":""}>${v.label}</option>`; });
+  const sheet=$("#sheet");
   sheet.innerHTML=`<div class="sheet-head"><h3>Espace administrateur</h3><button class="x" id="sheet-close">×</button></div>
-    <div class="pf-lbl">Tarification</div>
-    <div class="pf-row"><div><div class="pf-lbl">Essai (jours)</div><input class="field" id="ad-trial" type="number" value="${lic.trialDays}"></div><div><div class="pf-lbl">Abonnement de base /mois</div><input class="field" id="ad-base" type="number" value="${lic.basePrice}"></div></div>
-    <div class="pf-lbl">Supplément par métier supplémentaire</div><input class="field" id="ad-extra" type="number" value="${lic.extraMetierPrice}">
-    <div class="pf-row"><div><div class="pf-lbl">Par collaborateur /mois</div><input class="field" id="ad-collab" type="number" value="${lic.perCollaborateur!=null?lic.perCollaborateur:2000}"></div><div><div class="pf-lbl">Par caisse en + /mois</div><input class="field" id="ad-caisse" type="number" value="${lic.perCaisse!=null?lic.perCaisse:1000}"></div></div>
-    <div class="ps-note">Compte : <b>${accountCounts().collaborateurs}</b> collaborateur(s), <b>${accountCounts().caisses}</b> caisse(s) · <b>Coût mensuel : ${BOSS.fmtF(currentDueTotal())} / mois</b></div>
-    <button class="plus-item gold" id="ad-savecfg">Enregistrer la tarification</button>
-    <div class="pf-lbl" style="margin-top:14px">Générer un code de déverrouillage</div>
-    <div class="ps-note">Colle ta <b>clé privée</b> (jamais enregistrée dans l'app). Donne le code appareil du client et la durée.</div>
-    <input class="field" id="ad-priv" placeholder="Clé privée (JSON)">
-    <input class="field" id="ad-dev" placeholder="Code appareil du client" value="${state.deviceId}">
-    <div class="pf-row"><div><div class="pf-lbl">Durée (jours)</div><input class="field" id="ad-days" type="number" value="30"></div><div><div class="pf-lbl">&nbsp;</div><button class="plus-item" id="ad-gen" style="margin:0">Générer</button></div></div>
-    <input class="field" id="ad-code" placeholder="Le code généré apparaîtra ici" readonly>
-    <button class="plus-item" id="ad-copy">📋 Copier le code</button>
-    <label class="switch-row" style="margin-top:14px"><span>Verrouiller cet appareil maintenant</span><input type="checkbox" id="ad-lock" ${lic.lockedManually?"checked":""}></label>
-    <div class="pf-lbl">Rôle de cet appareil</div>
-    <select class="field" id="ad-role">${roleOpts}</select>
-    <div class="perm-grid" id="ad-perms"></div>
-    <div class="ps-note">⚠️ Voir <b>tous</b> les clients, comptes employés et réinitialisation de mots de passe : nécessite le serveur (voir le guide « back-end »).</div>`;
+    <div class="admin-tabs">
+      <button class="admin-tab" data-t="apercu">Aperçu</button>
+      <button class="admin-tab" data-t="equipe">Équipe</button>
+      <button class="admin-tab" data-t="donnees">Données</button>
+      <button class="admin-tab" data-t="business">Business</button>
+      <button class="admin-tab" data-t="licence">Licence</button>
+    </div>
+    <div id="admin-body"></div>`;
   $("#sheet-close").onclick=closeSheet;
+  sheet.querySelectorAll(".admin-tab").forEach(b=>{
+    b.onclick=()=>{ __adminTab=b.dataset.t; renderAdminBody(); sheet.querySelectorAll(".admin-tab").forEach(x=>x.classList.toggle("on",x===b)); };
+    if(b.dataset.t===__adminTab) b.classList.add("on");
+  });
+  renderAdminBody();
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function renderAdminBody(){
+  const body=$("#admin-body"); if(!body) return;
+  if(__adminTab==="apercu") return renderAdminApercu(body);
+  if(__adminTab==="equipe") return renderAdminEquipe(body);
+  if(__adminTab==="donnees") return renderAdminDonnees(body);
+  if(__adminTab==="business") return renderAdminBusiness(body);
+  if(__adminTab==="licence") return renderAdminLicence(body);
+}
+
+function renderAdminApercu(body){
+  const nbBusiness=Object.keys(state.profiles||{}).length;
+  const p=cur();
+  const nbProduits=(p?.revenus||[]).length;
+  const nbCharges=(p?.charges||[]).length;
+  const nbCaisse=(p?.caisse||[]).length;
+  const cloudStatus=(typeof Cloud!=="undefined"?Cloud.status():"off");
+  const email=(typeof Cloud!=="undefined"&&Cloud.user()&&Cloud.user().email)||"—";
+  const org=(state.cloud&&state.cloud.orgs&&state.cloud.orgs.find(o=>o.id===state.cloud.orgId))||null;
+  const orgNom=org?org.nom:"—";
+  const licState=BOSS.licenseStatus(state.license,metiersCount());
+  const badgeMap={active:"En cours (payé)",trial:"Essai",grace:"Grâce (48h)",locked:"Verrouillé"};
+  body.innerHTML=`
+    <div class="ad-card">
+      <div class="ad-card-title">Compte cloud</div>
+      <div class="ad-row"><span>Statut</span><b>${escapeHtml(cloudStatus)}</b></div>
+      <div class="ad-row"><span>Email</span><b>${escapeHtml(email)}</b></div>
+      <div class="ad-row"><span>Organisation</span><b>${escapeHtml(orgNom)}</b></div>
+      <div class="ad-row"><span>Rôle</span><b>${escapeHtml(state.admin?.role||"proprietaire")}</b></div>
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Ce business (${escapeHtml(p?.name||"—")})</div>
+      <div class="ad-row"><span>Produits/services</span><b>${nbProduits}</b></div>
+      <div class="ad-row"><span>Charges fixes</span><b>${nbCharges}</b></div>
+      <div class="ad-row"><span>Écritures caisse</span><b>${nbCaisse}</b></div>
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Global</div>
+      <div class="ad-row"><span>Nombre de business</span><b>${nbBusiness}</b></div>
+      <div class="ad-row"><span>Licence</span><b>${escapeHtml(badgeMap[licState.state]||licState.state)}</b></div>
+      <div class="ad-row"><span>Coût mensuel estimé</span><b>${BOSS.fmtF(currentDueTotal())}</b></div>
+    </div>
+    <button class="plus-item" id="ad-open-cloud">Gérer le compte cloud</button>
+    <button class="plus-item" id="ad-open-sync">Forcer la synchronisation</button>`;
+  $("#ad-open-cloud").onclick=()=>{ closeSheet(); openCloudSheet(); };
+  $("#ad-open-sync").onclick=async()=>{
+    if(typeof Cloud==="undefined"||!Cloud.available()){ alert("Espace en ligne non configuré"); return; }
+    if(!Cloud.session()){ alert("Connecte-toi d'abord"); return; }
+    const ok=await Cloud.syncNow();
+    alert(ok?"Synchronisation réussie ✅":"Échec de la synchronisation");
+  };
+}
+
+async function renderAdminEquipe(body){
+  body.innerHTML=`<div class="ps-note">Chargement de l'équipe…</div>`;
+  if(typeof Cloud==="undefined" || !Cloud.available() || !Cloud.session() || !Cloud.currentOrgId()){
+    body.innerHTML=`<div class="ps-note">Connecte-toi et crée ton organisation pour gérer une équipe. <button class="plus-item" id="ad-goto-cloud">Ouvrir l'espace en ligne</button></div>`;
+    const b=$("#ad-goto-cloud"); if(b) b.onclick=()=>{ closeSheet(); openCloudSheet(); };
+    return;
+  }
+  const [members, invites] = await Promise.all([Cloud.listMembers().catch(()=>[]), Cloud.listInvitations().catch(()=>[])]);
+  const rolesOpts = ["proprietaire","manager","collaborateur","comptable","commercial"];
+  const rows = members.map(m=>`
+    <div class="ad-mem-row">
+      <div class="ad-mem-info">
+        <b>${escapeHtml(m.nom||m.user_id.slice(0,8))}</b>
+        <span class="ad-mem-role">${escapeHtml(m.role)}</span>
+      </div>
+    </div>`).join("");
+  const invRows = invites.map(iv=>`
+    <div class="ad-inv-row">
+      <div><b>${escapeHtml(iv.email)}</b> · <span class="muted2">${escapeHtml(iv.role)}</span></div>
+      <div><code style="user-select:all;font-size:11px">${escapeHtml(iv.token)}</code></div>
+    </div>`).join("");
+  body.innerHTML=`
+    <div class="ad-card">
+      <div class="ad-card-title">Membres actifs (${members.length})</div>
+      ${rows||'<div class="ps-note">Personne pour le moment.</div>'}
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Inviter un collaborateur</div>
+      <div class="pf-lbl">Email</div>
+      <input class="field" id="ad-inv-email" type="email" placeholder="collab@exemple.com">
+      <div class="pf-lbl">Rôle</div>
+      <select class="field" id="ad-inv-role">${rolesOpts.map(r=>`<option value="${r}">${r}</option>`).join("")}</select>
+      <button class="sheet-add" id="ad-inv-send" style="margin-top:8px">Envoyer l'invitation</button>
+      <div id="ad-inv-status" class="ps-note" style="margin-top:8px"></div>
+    </div>
+    ${invRows?`<div class="ad-card"><div class="ad-card-title">Invitations en attente (${invites.length})</div>${invRows}</div>`:""}`;
+  $("#ad-inv-send").onclick=async()=>{
+    const email=$("#ad-inv-email").value.trim(); const role=$("#ad-inv-role").value;
+    const st=$("#ad-inv-status");
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ st.textContent="Email invalide"; return; }
+    st.textContent="Envoi…";
+    try{
+      const inv=await Cloud.inviteCollab(email, role);
+      st.innerHTML="Invitation créée ✅<br>Code à transmettre : <code style='user-select:all'>"+escapeHtml(inv.token)+"</code>";
+      setTimeout(()=>renderAdminEquipe(body), 800);
+    }catch(e){ st.textContent="Échec : "+(e.message||"réessaie"); }
+  };
+}
+
+function renderAdminDonnees(body){
+  body.innerHTML=`
+    <div class="ad-card">
+      <div class="ad-card-title">Sauvegarde locale</div>
+      <div class="ps-note">Exporte tous tes business dans un fichier JSON à garder sur ton téléphone/ordinateur.</div>
+      <button class="plus-item" id="ad-export">📥 Télécharger la sauvegarde</button>
+      <div class="ps-note" style="margin-top:12px">Restaure une sauvegarde précédente (remplace tout).</div>
+      <input class="field" id="ad-import-file" type="file" accept="application/json,.json">
+      <button class="plus-item" id="ad-import" style="margin-top:6px">📤 Restaurer</button>
+      <div id="ad-imp-status" class="ps-note"></div>
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Synchronisation cloud</div>
+      <div class="ad-row"><span>Statut</span><b>${escapeHtml(typeof Cloud!=="undefined"?Cloud.status():"off")}</b></div>
+      <button class="plus-item" id="ad-sync-now">🔄 Synchroniser maintenant</button>
+    </div>
+    <div class="ad-card ad-danger">
+      <div class="ad-card-title">⚠️ Zone dangereuse</div>
+      <div class="ps-note">Ces actions sont définitives.</div>
+      <button class="plus-item" id="ad-signout-all">Déconnexion cloud (sur cet appareil)</button>
+      <button class="plus-item" id="ad-wipe" style="color:#f96">🗑️ Effacer TOUTES les données locales</button>
+    </div>`;
+  $("#ad-export").onclick=()=>{
+    try{
+      const blob=new Blob([BOSS.serializeBackup(state)],{type:"application/json"});
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(blob);
+      const d=new Date(); const pad=n=>String(n).padStart(2,"0");
+      a.download="boss-sauvegarde-"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+".json";
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    }catch(e){ alert("Échec de l'export : "+e.message); }
+  };
+  $("#ad-import").onclick=()=>{
+    const f=$("#ad-import-file").files?.[0];
+    const st=$("#ad-imp-status");
+    if(!f){ st.textContent="Choisis un fichier"; return; }
+    if(!confirm("Restaurer cette sauvegarde va REMPLACER tous tes business actuels. Confirmer ?")) return;
+    const reader=new FileReader();
+    reader.onload=async()=>{
+      try{
+        const parsed=BOSS.parseBackup(reader.result);
+        state=Object.assign(state, parsed);
+        Object.values(state.profiles).forEach(p=>BOSS.ensureProfile(p));
+        await persist();
+        st.textContent="Restauration réussie ✅";
+        setTimeout(()=>{ closeSheet(); refreshAll(); },800);
+      }catch(e){ st.textContent="Fichier invalide : "+e.message; }
+    };
+    reader.readAsText(f);
+  };
+  $("#ad-sync-now").onclick=async()=>{
+    if(typeof Cloud==="undefined"||!Cloud.available()){ alert("Cloud non configuré"); return; }
+    if(!Cloud.session()){ alert("Connecte-toi d'abord"); return; }
+    const ok=await Cloud.syncNow();
+    alert(ok?"Synchronisé ✅":"Échec");
+  };
+  $("#ad-signout-all").onclick=async()=>{
+    if(!confirm("Se déconnecter de l'espace en ligne sur cet appareil ?")) return;
+    if(typeof Cloud!=="undefined") await Cloud.signOut();
+    refreshCloudBadge&&refreshCloudBadge();
+  };
+  $("#ad-wipe").onclick=async()=>{
+    if(!confirm("⚠️ Cette action efface TOUTES les données locales de tes business (sauf ce qui est dans le cloud). Continuer ?")) return;
+    if(!confirm("Vraiment sûr ? Cette action est irréversible.")) return;
+    state={profiles:{},currentId:null};
+    await Store.set(KEY, JSON.stringify(state));
+    location.reload();
+  };
+}
+
+function renderAdminBusiness(body){
+  const list=Object.values(state.profiles||{});
+  body.innerHTML=`
+    <div class="ad-card">
+      <div class="ad-card-title">Business (${list.length})</div>
+      ${list.map(p=>{
+        const m=BOSS.METIERS[p.metier];
+        const f=BOSS.computeFinancials(p);
+        return `<div class="ad-biz-row">
+          <div class="ad-biz-info">
+            <b>${escapeHtml(p.name)}</b>
+            <span class="muted2">${escapeHtml(m?m.name:"—")} · CA ~${BOSS.fmtF(f.ca)}/mois · net ${BOSS.fmtF(f.net)}</span>
+          </div>
+          <div>
+            <button class="plus-item" data-open="${escapeAttr(p.id)}" style="width:auto">Ouvrir</button>
+            ${list.length>1?`<button class="plus-item" data-del="${escapeAttr(p.id)}" style="width:auto;color:#f96">Supprimer</button>`:""}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="sheet-add" id="ad-biz-add">+ Nouveau business</button>`;
+  body.querySelectorAll("[data-open]").forEach(b=>b.onclick=async()=>{ state.currentId=b.dataset.open; await persist(); closeSheet(); refreshAll(); });
+  body.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.del;
+    if(!confirm("Supprimer ce business et toutes ses données ?")) return;
+    delete state.profiles[id];
+    if(state.currentId===id) state.currentId=Object.keys(state.profiles)[0];
+    await persist(); renderAdminBusiness(body); refreshAll();
+  });
+  $("#ad-biz-add").onclick=async()=>{
+    const nom=prompt("Nom du nouveau business ?","Mon business");
+    if(!nom) return;
+    const p=BOSS.blankProfile(nom); state.profiles[p.id]=p; state.currentId=p.id;
+    await persist(); renderAdminBusiness(body); refreshAll();
+  };
+}
+
+function renderAdminLicence(body){
+  const lic=state.license;
+  let roleOpts=""; Object.entries(BOSS.ROLES).forEach(([k,v])=>{ roleOpts+=`<option value="${k}" ${state.admin.role===k?"selected":""}>${v.label}</option>`; });
+  body.innerHTML=`
+    <div class="ad-card">
+      <div class="ad-card-title">Tarification</div>
+      <div class="pf-row"><div><div class="pf-lbl">Essai (jours)</div><input class="field" id="ad-trial" type="number" value="${lic.trialDays}"></div><div><div class="pf-lbl">Abonnement de base /mois</div><input class="field" id="ad-base" type="number" value="${lic.basePrice}"></div></div>
+      <div class="pf-lbl">Supplément par métier supplémentaire</div><input class="field" id="ad-extra" type="number" value="${lic.extraMetierPrice}">
+      <div class="pf-row"><div><div class="pf-lbl">Par collaborateur /mois</div><input class="field" id="ad-collab" type="number" value="${lic.perCollaborateur!=null?lic.perCollaborateur:2000}"></div><div><div class="pf-lbl">Par caisse en + /mois</div><input class="field" id="ad-caisse" type="number" value="${lic.perCaisse!=null?lic.perCaisse:1000}"></div></div>
+      <div class="ps-note">Compte : <b>${accountCounts().collaborateurs}</b> collaborateur(s), <b>${accountCounts().caisses}</b> caisse(s) · <b>Coût mensuel : ${BOSS.fmtF(currentDueTotal())}</b></div>
+      <button class="plus-item gold" id="ad-savecfg">Enregistrer la tarification</button>
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Générer un code de déverrouillage</div>
+      <div class="ps-note">Colle ta <b>clé privée</b> (jamais enregistrée dans l'app).</div>
+      <input class="field" id="ad-priv" placeholder="Clé privée (JSON)">
+      <input class="field" id="ad-dev" placeholder="Code appareil du client" value="${state.deviceId}">
+      <div class="pf-row"><div><div class="pf-lbl">Durée (jours)</div><input class="field" id="ad-days" type="number" value="30"></div><div><div class="pf-lbl">&nbsp;</div><button class="plus-item" id="ad-gen" style="margin:0">Générer</button></div></div>
+      <input class="field" id="ad-code" placeholder="Le code apparaîtra ici" readonly>
+      <button class="plus-item" id="ad-copy">📋 Copier le code</button>
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Cet appareil</div>
+      <label class="switch-row"><span>Verrouiller cet appareil</span><input type="checkbox" id="ad-lock" ${lic.lockedManually?"checked":""}></label>
+      <div class="pf-lbl">Rôle</div>
+      <select class="field" id="ad-role">${roleOpts}</select>
+      <div class="perm-grid" id="ad-perms"></div>
+    </div>`;
   $("#ad-savecfg").onclick=async()=>{ lic.trialDays=parseFloat($("#ad-trial").value)||0; lic.basePrice=parseFloat($("#ad-base").value)||0; lic.extraMetierPrice=parseFloat($("#ad-extra").value)||0; lic.perCollaborateur=parseFloat($("#ad-collab").value)||0; lic.perCaisse=parseFloat($("#ad-caisse").value)||0; await persist(); enforceLicense(); alert("Tarification enregistrée ✅"); };
-  $("#ad-gen").onclick=async()=>{ try{ const priv=JSON.parse($("#ad-priv").value); const dev=$("#ad-dev").value.trim(); const days=parseFloat($("#ad-days").value)||30; const tok=await BOSS.signLicenseToken(priv,{d:dev,e:Date.now()+days*86400000,m:metiersCount()}); $("#ad-code").value=tok; }catch(e){ alert("Clé privée invalide (colle le JSON complet)."); } };
+  $("#ad-gen").onclick=async()=>{ try{ const priv=JSON.parse($("#ad-priv").value); const dev=$("#ad-dev").value.trim(); const days=parseFloat($("#ad-days").value)||30; const tok=await BOSS.signLicenseToken(priv,{d:dev,e:Date.now()+days*86400000,m:metiersCount()}); $("#ad-code").value=tok; }catch(e){ alert("Clé privée invalide."); } };
   $("#ad-copy").onclick=()=>{ const v=$("#ad-code").value; if(!v)return; try{ navigator.clipboard.writeText(v); alert("Code copié ✅"); }catch(e){ $("#ad-code").select&&$("#ad-code").select(); } };
   $("#ad-lock").onchange=async e=>{ lic.lockedManually=e.target.checked; await persist(); enforceLicense(); };
   const renderPerms=()=>{ const role=BOSS.ROLES[$("#ad-role").value]; const g=$("#ad-perms"); g.innerHTML=""; (role.perms||[]).forEach(pm=>{ const row=el("div","perm-row"); row.innerHTML=`<span>${pm==="all"?"Tous les droits":pm}</span><b>✓</b>`; g.appendChild(row); }); };
   $("#ad-role").onchange=async()=>{ state.admin.role=$("#ad-role").value; await persist(); renderPerms(); };
   renderPerms();
-  $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 
 /* ---------- COACH IA (question libre, API si dispo sinon local) ---------- */
@@ -2294,7 +2752,16 @@ function wire(){
   const prec=$("#pos-receipt"); if(prec) prec.onclick=()=>posValider(true);
   const pcanal=$("#pos-canal"); if(pcanal) pcanal.querySelectorAll(".mode-b").forEach(b=>b.onclick=()=>{ posCanal=b.dataset.c; pcanal.querySelectorAll(".mode-b").forEach(x=>x.classList.toggle("on",x===b)); });
   const trs=$("#tr-stmt"); if(trs) trs.onchange=async()=>{ const p=cur(); if(!p.tresorerie.rappro)p.tresorerie.rappro={statement:0,pointed:[]}; p.tresorerie.rappro.statement=parseFloat(trs.value)||0; await persist(); renderTreso(); };
-  const ih=$("#install-hint"); if(ih) ih.onclick=doInstall;
+  const ih=$("#install-hint"); if(ih){
+    ih.onclick=(e)=>{ if(e.target.closest(".install-x")) return; doInstall(); };
+    const dx=$("#install-hint-dismiss"); if(dx) dx.onclick=(e)=>{ e.stopPropagation(); markInstallDismissed(); updateInstallHint(); };
+    // Texte adapté iOS
+    const txt=$("#install-hint-text");
+    if(txt){
+      if(isSafariiOS()) txt.textContent="Installer BOSS sur ton iPhone (Safari)";
+      else txt.textContent="Installer BOSS sur ton téléphone";
+    }
+  }
   const tgl=$("#theme-toggle"); if(tgl) tgl.onclick=toggleMode;
   const lu=$("#lock-unlock"); if(lu) lu.onclick=async()=>{ const okc=await applyUnlock($("#lock-code").value,$("#lock-err")); if(okc){ $("#lock-screen").style.display="none"; refreshAll(); enforceLicense(); } };
   const la=$("#lock-admin"); if(la) la.onclick=openAdmin;
