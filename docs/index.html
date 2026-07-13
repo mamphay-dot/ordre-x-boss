@@ -11,7 +11,7 @@
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' data: blob:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://text.pollinations.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://text.pollinations.ai https://image.pollinations.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai;
   frame-ancestors 'none';
   base-uri 'self';
   form-action 'self';
@@ -281,6 +281,21 @@
   .theme-toggle{background:var(--char2);border:1px solid var(--line);color:var(--cream);width:38px;height:38px;border-radius:11px;font-size:18px;cursor:pointer;flex:0 0 auto}
   .lock-banner{background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13px;padding:11px 14px;text-align:center;cursor:pointer;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+  .aff-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:12px}
+  @media(max-width:640px){.aff-editor{grid-template-columns:1fr}}
+  .aff-preview-wrap{background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:10px;position:sticky;top:10px;align-self:flex-start}
+  .aff-preview svg{width:100%;height:auto;display:block;border-radius:8px;background:var(--black)}
+  .aff-controls{display:flex;flex-direction:column;gap:6px}
+  .aff-tpls{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .aff-tpl{background:var(--char);color:var(--cream);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;font-family:inherit}
+  .aff-tpl.on{border-color:var(--gold);background:rgba(200,162,58,.10)}
+  .aff-tpl-name{font-weight:700;font-size:13.5px}
+  .aff-tpl-hint{color:var(--cream-dim);font-size:11.5px;margin-top:2px}
+  .aff-photo-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .btn-mini{background:var(--char);border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:var(--cream);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-mini:hover{border-color:var(--gold);color:var(--gold)}
+  .btn-mini.danger{color:#f96;border-color:#a34}
+  .aff-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .idle-lock{position:fixed;inset:0;z-index:250;background:rgba(8,8,10,.98);display:none;align-items:center;justify-content:center;padding:24px}
   .idle-lock-box{background:var(--char);border:1px solid var(--line);border-radius:16px;padding:26px 22px;max-width:340px;width:100%;text-align:center}
   .idle-lock-icon{color:var(--gold);margin-bottom:14px}
@@ -2813,6 +2828,7 @@ function renderVitrine(){
         <div class="vc-actions">
           <button class="vc-btn pay" data-i="${i}">${ic("pay")} Encaisser</button>
           <button class="vc-btn share" data-i="${i}">${ic("share")} Partager</button>
+          <button class="vc-btn affiche" data-i="${i}" aria-label="Créer une affiche">${ic("image")}</button>
           <button class="vc-btn edit" data-i="${i}" aria-label="Modifier">${ic("edit")}</button>
           <button class="vc-btn del" data-i="${i}" aria-label="Supprimer">${ic("del")}</button>
         </div>
@@ -2821,6 +2837,7 @@ function renderVitrine(){
   });
   grid.querySelectorAll(".pay").forEach(b=>b.onclick=()=>openPay(+b.dataset.i));
   grid.querySelectorAll(".share").forEach(b=>b.onclick=()=>shareProduct(+b.dataset.i));
+  grid.querySelectorAll(".affiche").forEach(b=>b.onclick=()=>{ const idx=+b.dataset.i; const r=(cur().revenus||[])[idx]; openAffiches(r?.id); });
   grid.querySelectorAll(".edit").forEach(b=>b.onclick=()=>openProduct(+b.dataset.i));
   grid.querySelectorAll(".del").forEach(b=>b.onclick=async()=>{ if(confirm("Retirer ce produit ?")){p.revenus.splice(+b.dataset.i,1);await persist();renderVitrine();renderDash&&renderDash();} });
 }
@@ -3138,6 +3155,7 @@ function openPlus(){
     <button class="plus-item" id="pl-appearance">${ic("theme")} Apparence (thème & couleur)</button>
     <button class="plus-item" id="pl-sync">${ic("sync")} Synchronisation entre appareils</button>
     <button class="plus-item" id="pl-admin">${ic("admin")} Espace administrateur</button>
+    <button class="plus-item" id="pl-affiche">${ic("image")} Créer une affiche</button>
     <button class="plus-item" id="pl-lock">${ic("lock")} Verrouiller BOSS maintenant</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
@@ -3169,6 +3187,7 @@ function openPlus(){
   $("#pl-sync").onclick=()=>{ openSync(); };
   $("#pl-appearance").onclick=()=>{ openAppearance(); };
   $("#pl-admin").onclick=()=>{ openAdmin(); };
+  const pla=$("#pl-affiche"); if(pla) pla.onclick=()=>{ closeSheet(); openAffiches(); };
   const pll=$("#pl-lock"); if(pll) pll.onclick=()=>{ closeSheet(); IdleLock.forceLockNow(); };
   $("#pl-onboard").onclick=()=>{ closeSheet(); showView("onboard"); startOnboard(); };
   $("#pl-ai").onclick=()=>{ openAISettings(); };
@@ -5094,6 +5113,388 @@ async function askCoach(q){
   }
   wait.textContent=answer;
   log.scrollTop=log.scrollHeight;
+}
+
+/* ============================================================
+   AFFICHES / FLYERS — 4 gabarits SVG, éditeur live, export PNG,
+   partage WhatsApp, génération d'image via Pollinations.
+   ============================================================ */
+
+function escapeSvg(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+
+/* Découpe un texte en lignes tenant dans une largeur pixels approximée
+   par la taille de police (0.55 * fontSize par caractère en moyenne). */
+function wrapText(str, maxChars){
+  const words = String(str||"").split(/\s+/).filter(Boolean);
+  const lines=[]; let cur="";
+  for(const w of words){
+    if((cur+" "+w).trim().length > maxChars){
+      if(cur) lines.push(cur); cur = w;
+    } else cur = (cur?cur+" ":"")+w;
+  }
+  if(cur) lines.push(cur);
+  return lines;
+}
+function tspanLines(lines, x, y, dy){
+  return lines.map((l,i)=>`<tspan x="${x}" dy="${i===0?0:dy}">${escapeSvg(l)}</tspan>`).join("");
+}
+function affPrice(v){ return v==null?"—":(Math.round(v).toLocaleString("fr-FR")+" F"); }
+
+/* ---------- GABARIT 1 : VITRINE SOLO ---------- */
+function tplVitrine(cfg){
+  const { title, subtitle, price, photo, logo, phone, address, accent } = cfg;
+  const acc = accent || "#C8A23A";
+  const nameLines = wrapText(title||"Nom du produit", 18);
+  const nameHtml = tspanLines(nameLines.slice(0,2), 540, 1030, 68);
+  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1080" height="1350" fill="#0E0E0F"/>
+    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
+    ${logo?`<image href="${logo}" x="70" y="80" width="140" height="140" preserveAspectRatio="xMidYMid meet"/>`:
+      `<circle cx="140" cy="150" r="55" fill="${acc}"/><text x="140" y="170" font-family="Archivo" font-weight="900" font-size="48" fill="#0E0E0F" text-anchor="middle">B</text>`}
+    <text x="240" y="130" font-family="Archivo" font-weight="900" font-size="42" fill="#ECECEE">${escapeSvg(subtitle||"BOSS")}</text>
+    <text x="240" y="178" font-family="Inter" font-size="22" fill="#9A9AA0">${escapeSvg(phone||"")}</text>
+    ${photo?`<clipPath id="phV"><rect x="90" y="260" width="900" height="640" rx="20"/></clipPath>
+      <image href="${photo}" x="90" y="260" width="900" height="640" preserveAspectRatio="xMidYMid slice" clip-path="url(#phV)"/>`:
+      `<rect x="90" y="260" width="900" height="640" rx="20" fill="#1A1A1C" stroke="#34343A" stroke-width="2"/>
+       <text x="540" y="590" font-family="Inter" font-size="26" fill="#9A9AA0" text-anchor="middle">Photo du produit</text>`}
+    <rect x="0" y="960" width="1080" height="390" fill="#1A1A1C"/>
+    <text font-family="Archivo" font-weight="800" font-size="60" fill="#ECECEE" text-anchor="middle">${nameHtml}</text>
+    <text x="540" y="1180" font-family="Archivo" font-weight="900" font-size="130" fill="${acc}" text-anchor="middle">${escapeSvg(affPrice(price))}</text>
+    <text x="540" y="1290" font-family="Inter" font-size="24" fill="#9A9AA0" text-anchor="middle">${escapeSvg(address||"")}</text>
+  </svg>`;
+}
+
+/* ---------- GABARIT 2 : CATALOGUE 3 PRODUITS ---------- */
+function tplGrille3(cfg){
+  const { title, subtitle, products, logo, phone, address, accent } = cfg;
+  const acc = accent || "#C8A23A";
+  const items = (products||[]).slice(0,3);
+  while(items.length<3) items.push({nom:"Ton produit",prix:0,photo:null});
+  const cardX=[60,395,730];
+  const cards = items.map((p,i)=>{
+    const nlines = wrapText(p.nom||"Produit", 14).slice(0,2);
+    const nameHtml = tspanLines(nlines, cardX[i]+145, 900, 34);
+    return `
+      ${p.photo?`<clipPath id="ph3_${i}"><rect x="${cardX[i]}" y="620" width="290" height="220" rx="14"/></clipPath>
+        <image href="${p.photo}" x="${cardX[i]}" y="620" width="290" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#ph3_${i})"/>`:
+        `<rect x="${cardX[i]}" y="620" width="290" height="220" rx="14" fill="#242427"/>
+         <text x="${cardX[i]+145}" y="740" font-family="Inter" font-size="18" fill="#9A9AA0" text-anchor="middle">Photo</text>`}
+      <text font-family="Archivo" font-weight="700" font-size="26" fill="#ECECEE" text-anchor="middle">${nameHtml}</text>
+      <text x="${cardX[i]+145}" y="1010" font-family="Archivo" font-weight="900" font-size="42" fill="${acc}" text-anchor="middle">${escapeSvg(affPrice(p.prix))}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1080" height="1350" fill="#0E0E0F"/>
+    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
+    ${logo?`<image href="${logo}" x="70" y="70" width="120" height="120" preserveAspectRatio="xMidYMid meet"/>`:""}
+    <text x="220" y="120" font-family="Archivo" font-weight="900" font-size="50" fill="${acc}">${escapeSvg(title||"NOTRE CATALOGUE")}</text>
+    <text x="220" y="170" font-family="Inter" font-size="24" fill="#9A9AA0">${escapeSvg(subtitle||"")}</text>
+    <line x1="60" y1="220" x2="1020" y2="220" stroke="${acc}" stroke-width="3"/>
+    <text x="540" y="330" font-family="Archivo" font-weight="800" font-size="52" fill="#ECECEE" text-anchor="middle">Découvre nos offres</text>
+    <text x="540" y="400" font-family="Inter" font-size="24" fill="#9A9AA0" text-anchor="middle">Commande directement par WhatsApp</text>
+    ${cards}
+    <rect x="0" y="1150" width="1080" height="200" fill="#1A1A1C"/>
+    <text x="540" y="1230" font-family="Archivo" font-weight="800" font-size="42" fill="${acc}" text-anchor="middle">${escapeSvg(phone||"")}</text>
+    <text x="540" y="1290" font-family="Inter" font-size="22" fill="#9A9AA0" text-anchor="middle">${escapeSvg(address||"")}</text>
+  </svg>`;
+}
+
+/* ---------- GABARIT 3 : PROMO CHOC ---------- */
+function tplPromo(cfg){
+  const { title, subtitle, price, priceOld, promoLabel, promoUntil, photo, logo, phone, accent } = cfg;
+  const acc = accent || "#C8A23A";
+  const nameLines = wrapText(title||"Produit", 16).slice(0,2);
+  const nameHtml = tspanLines(nameLines, 540, 1020, 68);
+  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1080" height="1350" fill="#0E0E0F"/>
+    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
+    ${logo?`<image href="${logo}" x="70" y="80" width="130" height="130" preserveAspectRatio="xMidYMid meet"/>`:""}
+    <text x="220" y="130" font-family="Archivo" font-weight="900" font-size="42" fill="#ECECEE">${escapeSvg(subtitle||"PROMO")}</text>
+    <text x="220" y="180" font-family="Inter" font-size="24" fill="#9A9AA0">${escapeSvg(phone||"")}</text>
+    ${photo?`<clipPath id="phP"><rect x="90" y="240" width="900" height="640" rx="20"/></clipPath>
+      <image href="${photo}" x="90" y="240" width="900" height="640" preserveAspectRatio="xMidYMid slice" clip-path="url(#phP)"/>`:
+      `<rect x="90" y="240" width="900" height="640" rx="20" fill="#1A1A1C"/>
+       <text x="540" y="570" font-family="Inter" font-size="26" fill="#9A9AA0" text-anchor="middle">Photo</text>`}
+    <g transform="translate(870 260) rotate(-12)">
+      <circle cx="0" cy="0" r="130" fill="${acc}"/>
+      <text y="-10" font-family="Archivo" font-weight="900" font-size="60" fill="#0E0E0F" text-anchor="middle">${escapeSvg(promoLabel||"-30%")}</text>
+      <text y="40" font-family="Inter" font-weight="700" font-size="22" fill="#0E0E0F" text-anchor="middle">PROMO</text>
+    </g>
+    <rect x="0" y="920" width="1080" height="430" fill="#1A1A1C"/>
+    <text font-family="Archivo" font-weight="800" font-size="60" fill="#ECECEE" text-anchor="middle">${nameHtml}</text>
+    ${priceOld?`<text x="540" y="1180" font-family="Archivo" font-size="52" fill="#9A9AA0" text-anchor="middle" text-decoration="line-through">${escapeSvg(affPrice(priceOld))}</text>`:""}
+    <text x="540" y="1270" font-family="Archivo" font-weight="900" font-size="120" fill="${acc}" text-anchor="middle">${escapeSvg(affPrice(price))}</text>
+    ${promoUntil?`<text x="540" y="1330" font-family="Inter" font-weight="600" font-size="22" fill="#e08" text-anchor="middle">⏰ Jusqu'au ${escapeSvg(promoUntil)}</text>`:""}
+  </svg>`;
+}
+
+/* ---------- GABARIT 4 : MENU DU JOUR ---------- */
+function tplMenu(cfg){
+  const { title, subtitle, products, hours, logo, phone, address, accent } = cfg;
+  const acc = accent || "#C8A23A";
+  const items = (products||[]).slice(0,6);
+  const rows = items.map((p,i)=>{
+    const y = 500 + i*100;
+    return `
+      <line x1="80" y1="${y+30}" x2="1000" y2="${y+30}" stroke="#242427" stroke-width="1"/>
+      <text x="80" y="${y+10}" font-family="Inter" font-weight="700" font-size="30" fill="#ECECEE">${escapeSvg((p.nom||"Produit").slice(0,32))}</text>
+      <text x="1000" y="${y+10}" font-family="Archivo" font-weight="800" font-size="34" fill="${acc}" text-anchor="end">${escapeSvg(affPrice(p.prix))}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1080" height="1350" fill="#0E0E0F"/>
+    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
+    ${logo?`<image href="${logo}" x="70" y="70" width="130" height="130" preserveAspectRatio="xMidYMid meet"/>`:""}
+    <text x="540" y="180" font-family="Archivo" font-weight="900" font-size="72" fill="${acc}" text-anchor="middle">${escapeSvg(title||"MENU DU JOUR")}</text>
+    <text x="540" y="240" font-family="Inter" font-size="26" fill="#9A9AA0" text-anchor="middle">${escapeSvg(subtitle||"")}</text>
+    ${hours?`<rect x="290" y="290" width="500" height="70" rx="35" fill="#1A1A1C" stroke="${acc}" stroke-width="2"/>
+      <text x="540" y="335" font-family="Inter" font-weight="700" font-size="24" fill="${acc}" text-anchor="middle">🕐 ${escapeSvg(hours)}</text>`:""}
+    ${rows}
+    <rect x="0" y="1180" width="1080" height="170" fill="#1A1A1C"/>
+    <text x="540" y="1240" font-family="Archivo" font-weight="800" font-size="38" fill="${acc}" text-anchor="middle">${escapeSvg(phone||"")}</text>
+    <text x="540" y="1300" font-family="Inter" font-size="22" fill="#9A9AA0" text-anchor="middle">${escapeSvg(address||"")}</text>
+  </svg>`;
+}
+
+const AFFICHE_TEMPLATES = [
+  { id:"vitrine",  label:"Vitrine solo",       hint:"1 produit, prix géant, photo",    fn: tplVitrine },
+  { id:"grille3",  label:"Catalogue 3",        hint:"3 produits + prix",              fn: tplGrille3 },
+  { id:"promo",    label:"Promo choc",         hint:"Badge % + prix barré",           fn: tplPromo   },
+  { id:"menu",     label:"Menu du jour",       hint:"Liste + horaires (maquis)",      fn: tplMenu    }
+];
+
+/* ---------- ÉDITEUR ---------- */
+let __aff = null; // config courante
+
+function openAffiches(preselectedProductId){
+  const p = cur();
+  const products = (p.revenus||[]).filter(r=>r.nom);
+  const preselected = preselectedProductId ? products.find(r=>r.id===preselectedProductId) : products[0];
+  __aff = {
+    tpl: "vitrine",
+    title: preselected?.nom || "",
+    subtitle: p.name || "",
+    price: preselected?.prix || 0,
+    priceOld: (preselected?.prix||0) > 0 ? Math.round((preselected.prix)*1.3) : 0,
+    promoLabel: "-30%",
+    promoUntil: "",
+    hours: "",
+    photo: preselected?.photo || null,
+    products: products.slice(0,6).map(r=>({nom:r.nom, prix:r.prix, photo:r.photo||null})),
+    logo: p.identite?.logo || null,
+    phone: p.identite?.tel || "",
+    address: p.identite?.adresse || "",
+    accent: (state.theme && state.theme.accent) || "#C8A23A"
+  };
+  renderAfficheEditor();
+}
+
+function renderAfficheEditor(){
+  const sheet = $("#sheet");
+  const tplList = AFFICHE_TEMPLATES.map(t=>`
+    <button class="aff-tpl ${__aff.tpl===t.id?'on':''}" data-t="${t.id}">
+      <div class="aff-tpl-name">${escapeHtml(t.label)}</div>
+      <div class="aff-tpl-hint">${escapeHtml(t.hint)}</div>
+    </button>`).join("");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Créer une affiche</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="aff-editor">
+      <div class="aff-preview-wrap"><div class="aff-preview" id="aff-preview"></div></div>
+      <div class="aff-controls">
+        <div class="pf-lbl">Gabarit</div>
+        <div class="aff-tpls">${tplList}</div>
+
+        <div class="pf-lbl">Titre / Nom principal</div>
+        <input class="field" id="aff-title" value="${escapeAttr(__aff.title)}" maxlength="60">
+        <div class="pf-lbl">Sous-titre / Nom entreprise</div>
+        <input class="field" id="aff-sub" value="${escapeAttr(__aff.subtitle)}" maxlength="40">
+
+        <div class="pf-row">
+          <div><div class="pf-lbl">Prix (FCFA)</div>
+            <input class="field" id="aff-price" type="number" value="${Number(__aff.price)||0}"></div>
+          <div><div class="pf-lbl">Prix barré (promo)</div>
+            <input class="field" id="aff-priceold" type="number" value="${Number(__aff.priceOld)||0}"></div>
+        </div>
+
+        <div class="pf-row">
+          <div><div class="pf-lbl">Badge promo</div>
+            <input class="field" id="aff-promolabel" value="${escapeAttr(__aff.promoLabel)}" maxlength="10"></div>
+          <div><div class="pf-lbl">Jusqu'au</div>
+            <input class="field" id="aff-promountil" value="${escapeAttr(__aff.promoUntil)}" maxlength="30" placeholder="ex : dimanche 20h"></div>
+        </div>
+
+        <div class="pf-lbl">Horaires (menu)</div>
+        <input class="field" id="aff-hours" value="${escapeAttr(__aff.hours)}" maxlength="40" placeholder="ex : 11h → 23h · 7/7">
+
+        <div class="pf-lbl">Téléphone</div>
+        <input class="field" id="aff-phone" value="${escapeAttr(__aff.phone)}" maxlength="40">
+        <div class="pf-lbl">Adresse</div>
+        <input class="field" id="aff-addr" value="${escapeAttr(__aff.address)}" maxlength="120">
+
+        <div class="pf-lbl">Photo du produit</div>
+        <div class="aff-photo-actions">
+          <label class="btn-mini">📷 Envoyer<input type="file" id="aff-photo" accept="image/*" hidden></label>
+          <button class="btn-mini" id="aff-ai">✨ Générer par IA</button>
+          ${__aff.photo?`<button class="btn-mini danger" id="aff-photo-clear">✕ Retirer</button>`:""}
+        </div>
+        <div id="aff-ai-status" class="ps-note"></div>
+
+        <div class="pf-lbl">Logo</div>
+        <div class="aff-photo-actions">
+          <label class="btn-mini">📷 Envoyer un logo<input type="file" id="aff-logo" accept="image/*" hidden></label>
+          ${__aff.logo?`<button class="btn-mini danger" id="aff-logo-clear">✕ Retirer</button>`:""}
+        </div>
+
+        <div class="aff-actions">
+          <button class="sheet-add" id="aff-download">📥 Télécharger PNG</button>
+          <button class="plus-item" id="aff-share">📱 Partager (WhatsApp)</button>
+          <button class="plus-item" id="aff-print">🖨️ Imprimer</button>
+        </div>
+      </div>
+    </div>`;
+  renderIcons(sheet);
+  $("#sheet-close").onclick = closeSheet;
+
+  sheet.querySelectorAll(".aff-tpl").forEach(b=>b.onclick = ()=>{ __aff.tpl = b.dataset.t; renderAfficheEditor(); });
+  const bind = (id, key, num)=>{ const el=$("#"+id); if(!el) return; el.oninput = ()=>{ __aff[key] = num?parseFloat(el.value)||0:el.value; updatePreview(); }; };
+  bind("aff-title","title");
+  bind("aff-sub","subtitle");
+  bind("aff-price","price", true);
+  bind("aff-priceold","priceOld", true);
+  bind("aff-promolabel","promoLabel");
+  bind("aff-promountil","promoUntil");
+  bind("aff-hours","hours");
+  bind("aff-phone","phone");
+  bind("aff-addr","address");
+
+  const readAsDataURL = f => new Promise((r,rj)=>{ const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.onerror=rj; rd.readAsDataURL(f); });
+
+  const photoInp = $("#aff-photo");
+  if(photoInp) photoInp.onchange = async e=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    if(f.size > 4*1024*1024){ alert("Image trop lourde (max 4 Mo)."); return; }
+    try { __aff.photo = await readAsDataURL(f); renderAfficheEditor(); } catch(_){ alert("Impossible de lire cette image."); }
+  };
+  const photoClear = $("#aff-photo-clear");
+  if(photoClear) photoClear.onclick = ()=>{ __aff.photo = null; renderAfficheEditor(); };
+
+  const logoInp = $("#aff-logo");
+  if(logoInp) logoInp.onchange = async e=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    if(f.size > 2*1024*1024){ alert("Logo trop lourd (max 2 Mo)."); return; }
+    try {
+      const url = await readAsDataURL(f);
+      __aff.logo = url;
+      // Sauvegarde dans le profil pour réutilisation
+      const p = cur(); if(!p.identite) p.identite = {}; p.identite.logo = url; await persist();
+      renderAfficheEditor();
+    } catch(_){ alert("Impossible de lire ce logo."); }
+  };
+  const logoClear = $("#aff-logo-clear");
+  if(logoClear) logoClear.onclick = ()=>{ __aff.logo = null; renderAfficheEditor(); };
+
+  $("#aff-ai").onclick = () => generateAffichePhoto();
+  $("#aff-download").onclick = () => afficheDownload();
+  $("#aff-share").onclick    = () => afficheShare();
+  $("#aff-print").onclick    = () => affichePrint();
+
+  updatePreview();
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function currentAfficheSVG(){
+  const t = AFFICHE_TEMPLATES.find(x=>x.id===__aff.tpl) || AFFICHE_TEMPLATES[0];
+  return t.fn(__aff);
+}
+function updatePreview(){
+  const box = $("#aff-preview"); if(!box) return;
+  box.innerHTML = currentAfficheSVG();
+}
+
+async function generateAffichePhoto(){
+  const st = $("#aff-ai-status"); if(st) st.textContent = "Génération IA en cours (~10 s)…";
+  try {
+    const kw = __aff.title || "produit";
+    const prompt = `professional product photography of ${kw}, west african market style, studio lighting, clean background, high quality, no text`;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=800&nologo=true&safe=true&seed=${Math.floor(Math.random()*1e6)}`;
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    const blob = await resp.blob();
+    const dataUrl = await new Promise((r,rj)=>{ const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.onerror=rj; rd.readAsDataURL(blob); });
+    __aff.photo = dataUrl;
+    if(st) st.textContent = "Image générée ✅";
+    renderAfficheEditor();
+  } catch(e){
+    if(st) st.textContent = "Échec de la génération : "+(e.message||"réseau");
+  }
+}
+
+/* SVG → PNG blob à 1080×1350 */
+async function afficheToPngBlob(){
+  const svg = currentAfficheSVG();
+  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+  try {
+    return await new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.onload = () => {
+        const cv = document.createElement("canvas");
+        cv.width = 1080; cv.height = 1350;
+        const ctx = cv.getContext("2d");
+        ctx.fillStyle = "#0E0E0F"; ctx.fillRect(0,0,cv.width,cv.height);
+        ctx.drawImage(img, 0, 0, cv.width, cv.height);
+        cv.toBlob(b => b ? resolve(b) : reject(new Error("toBlob a échoué")), "image/png", 0.95);
+      };
+      img.onerror = () => reject(new Error("SVG illisible en image"));
+      img.src = url;
+    });
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function affNameBase(){
+  const t = (__aff.title || "affiche").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+  const d = new Date(); const pad = n=>String(n).padStart(2,"0");
+  return `boss-${t}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.png`;
+}
+
+async function afficheDownload(){
+  try {
+    const blob = await afficheToPngBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = affNameBase(); a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  } catch(e){ alert("Échec du téléchargement : "+(e.message||"")); }
+}
+
+async function afficheShare(){
+  try {
+    const blob = await afficheToPngBlob();
+    const file = new File([blob], affNameBase(), { type:"image/png" });
+    const shareData = {
+      files: [file],
+      title: __aff.title || "Affiche BOSS",
+      text: `${__aff.title || ""} — ${affPrice(__aff.price)}${__aff.phone?"\n📞 "+__aff.phone:""}`
+    };
+    if(navigator.canShare && navigator.canShare(shareData) && navigator.share){
+      await navigator.share(shareData);
+    } else {
+      // Repli : ouvre WhatsApp avec juste le texte (sans image)
+      const txt = `*${__aff.title||""}*\n${affPrice(__aff.price)}${__aff.phone?"\n📞 "+__aff.phone:""}${__aff.address?"\n📍 "+__aff.address:""}\n\nTélécharge l'affiche puis envoie-la 👇`;
+      window.open("https://wa.me/?text="+encodeURIComponent(txt), "_blank");
+      // + télécharge l'image
+      afficheDownload();
+    }
+  } catch(e){ alert("Partage indisponible : "+(e.message||"")); }
+}
+
+function affichePrint(){
+  const svg = currentAfficheSVG();
+  const w = window.open("", "_blank");
+  if(!w){ alert("Autorise les popups pour imprimer."); return; }
+  w.document.write(`<!doctype html><html><head><title>Affiche BOSS</title>
+    <style>@page{size:A4 portrait;margin:12mm}html,body{margin:0;padding:0;background:#0E0E0F}
+    .p{width:100%;max-width:186mm;margin:0 auto}.p svg{width:100%;height:auto;display:block}</style>
+    </head><body onload="window.print();setTimeout(()=>window.close(),300)">
+    <div class="p">${svg}</div></body></html>`);
+  w.document.close();
 }
 
 /* ---------- utils ---------- */

@@ -11,7 +11,7 @@
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' data: blob:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://text.pollinations.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://text.pollinations.ai https://image.pollinations.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai;
   frame-ancestors 'none';
   base-uri 'self';
   form-action 'self';
@@ -281,6 +281,21 @@
   .theme-toggle{background:var(--char2);border:1px solid var(--line);color:var(--cream);width:38px;height:38px;border-radius:11px;font-size:18px;cursor:pointer;flex:0 0 auto}
   .lock-banner{background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13px;padding:11px 14px;text-align:center;cursor:pointer;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+  .aff-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:12px}
+  @media(max-width:640px){.aff-editor{grid-template-columns:1fr}}
+  .aff-preview-wrap{background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:10px;position:sticky;top:10px;align-self:flex-start}
+  .aff-preview svg{width:100%;height:auto;display:block;border-radius:8px;background:var(--black)}
+  .aff-controls{display:flex;flex-direction:column;gap:6px}
+  .aff-tpls{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .aff-tpl{background:var(--char);color:var(--cream);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;font-family:inherit}
+  .aff-tpl.on{border-color:var(--gold);background:rgba(200,162,58,.10)}
+  .aff-tpl-name{font-weight:700;font-size:13.5px}
+  .aff-tpl-hint{color:var(--cream-dim);font-size:11.5px;margin-top:2px}
+  .aff-photo-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .btn-mini{background:var(--char);border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:var(--cream);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-mini:hover{border-color:var(--gold);color:var(--gold)}
+  .btn-mini.danger{color:#f96;border-color:#a34}
+  .aff-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .idle-lock{position:fixed;inset:0;z-index:250;background:rgba(8,8,10,.98);display:none;align-items:center;justify-content:center;padding:24px}
   .idle-lock-box{background:var(--char);border:1px solid var(--line);border-radius:16px;padding:26px 22px;max-width:340px;width:100%;text-align:center}
   .idle-lock-icon{color:var(--gold);margin-bottom:14px}
