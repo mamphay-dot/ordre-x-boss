@@ -281,6 +281,20 @@
   .theme-toggle{background:var(--char2);border:1px solid var(--line);color:var(--cream);width:38px;height:38px;border-radius:11px;font-size:18px;cursor:pointer;flex:0 0 auto}
   .lock-banner{background:var(--gold);color:var(--on-accent);font-weight:700;font-size:13px;padding:11px 14px;text-align:center;cursor:pointer;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+  .perso-home-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  @media(max-width:640px){.perso-home-grid{grid-template-columns:1fr}}
+  .perso-home-row{display:flex;align-items:center;gap:10px;background:var(--char);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13.5px}
+  .perso-home-row:has(input:checked){border-color:var(--gold);background:rgba(200,162,58,.10)}
+  .perso-home-ic{color:var(--gold);display:inline-flex}
+  .perso-home-ic .ic{width:20px;height:20px}
+  .perso-items{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+  .perso-item-row{display:flex;align-items:center;gap:10px;background:var(--char);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13.5px}
+  .perso-item-row:has(input:checked){border-color:var(--gold)}
+  .perso-item-row.perso-req-row{opacity:.75;cursor:not-allowed}
+  .perso-item-ic{color:var(--gold);display:inline-flex}
+  .perso-item-ic .ic{width:18px;height:18px}
+  .perso-item-lbl{flex:1}
+  .perso-req{color:var(--cream-dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
   .aff-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:12px}
   @media(max-width:640px){.aff-editor{grid-template-columns:1fr}}
   .aff-preview-wrap{background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:10px;position:sticky;top:10px;align-self:flex-start}
@@ -2424,6 +2438,7 @@ async function restore(){
   if(raw){ try{state=JSON.parse(raw);}catch(e){} }
   if(!state.profiles) state.profiles={};
   Object.values(state.profiles).forEach(p=>BOSS.ensureProfile(p));
+  Object.values(state.profiles).forEach(ensureProfileUI);
   let created=false;
   if(!state.theme){ state.theme={mode:"dark",accent:"#C8A23A"}; created=true; }
   if(!state.deviceId){ state.deviceId=genDeviceId(); created=true; }
@@ -2482,7 +2497,7 @@ function openProfiles(){
     row.innerHTML=`<div class="pr-ic">${ic(icName)}</div>
       <div class="pr-info"><div class="pr-n">${escapeHtml(p.name)}</div><div class="pr-m">${m?m.name:""}</div></div>
       ${Object.keys(state.profiles).length>1?`<button class="pr-del" data-id="${p.id}" title="Supprimer">${ic("del")}</button>`:""}`;
-    row.querySelector(".pr-info").onclick=async()=>{state.currentId=p.id;await persist();closeSheet();refreshAll();};
+    row.querySelector(".pr-info").onclick=async()=>{state.currentId=p.id;await persist();closeSheet();applyMenuCustomization();refreshAll();showView((cur().ui&&cur().ui.home)||"dash");};
     row.querySelector(".pr-ic").onclick=row.querySelector(".pr-info").onclick;
     const del=row.querySelector(".pr-del");
     if(del) del.onclick=async(e)=>{e.stopPropagation(); if(confirm("Supprimer « "+p.name+" » ?")){ delete state.profiles[p.id]; if(state.currentId===p.id) state.currentId=Object.keys(state.profiles)[0]; await persist(); openProfiles(); refreshAll(); }};
@@ -3156,6 +3171,7 @@ function openPlus(){
     <button class="plus-item" id="pl-sync">${ic("sync")} Synchronisation entre appareils</button>
     <button class="plus-item" id="pl-admin">${ic("admin")} Espace administrateur</button>
     <button class="plus-item" id="pl-affiche">${ic("image")} Créer une affiche</button>
+    <button class="plus-item" id="pl-perso">${ic("config")} Personnaliser mon menu</button>
     <button class="plus-item" id="pl-lock">${ic("lock")} Verrouiller BOSS maintenant</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
@@ -3188,6 +3204,7 @@ function openPlus(){
   $("#pl-appearance").onclick=()=>{ openAppearance(); };
   $("#pl-admin").onclick=()=>{ openAdmin(); };
   const pla=$("#pl-affiche"); if(pla) pla.onclick=()=>{ closeSheet(); openAffiches(); };
+  const plp=$("#pl-perso"); if(plp) plp.onclick=()=>{ closeSheet(); openPersonnalisation(); };
   const pll=$("#pl-lock"); if(pll) pll.onclick=()=>{ closeSheet(); IdleLock.forceLockNow(); };
   $("#pl-onboard").onclick=()=>{ closeSheet(); showView("onboard"); startOnboard(); };
   $("#pl-ai").onclick=()=>{ openAISettings(); };
@@ -5116,6 +5133,119 @@ async function askCoach(q){
 }
 
 /* ============================================================
+   PERSONNALISATION UI par profil : écran d'accueil + modules
+   du menu visibles. Chaque business a sa propre config.
+   ============================================================ */
+
+// Toutes les vues candidates (ordre affiché dans le menu de personnalisation)
+const MENU_VIEWS = [
+  {v:"dash",       label:"Tableau",        ic:"dash",       required:true},
+  {v:"boutique",   label:"Boutique",       ic:"boutique"},
+  {v:"stock",      label:"Stock",          ic:"stock"},
+  {v:"caisse",     label:"Caisse",         ic:"caisse"},
+  {v:"pos",        label:"Saisie caisse",  ic:"pos"},
+  {v:"carnet",     label:"Carnet",         ic:"carnet"},
+  {v:"commandes",  label:"Commandes",      ic:"commandes"},
+  {v:"pieces",     label:"Pièces",         ic:"doc"},
+  {v:"tresorerie", label:"Trésorerie",     ic:"wallet"},
+  {v:"clients",    label:"Clients",        ic:"clients"},
+  {v:"historique", label:"Historique",     ic:"historique"},
+  {v:"config",     label:"Réglages",       ic:"config",     required:true},
+  {v:"onboard",    label:"Reconfigurer",   ic:"onboard"}
+];
+
+// Vues candidates comme écran d'accueil (uniquement celles qui ont du sens à l'ouverture)
+const HOME_CANDIDATES = ["dash","boutique","caisse","pos","commandes","carnet","stock","pieces","tresorerie","clients","historique"];
+
+function defaultMenuVisible(){ return MENU_VIEWS.map(x=>x.v); }
+
+function ensureProfileUI(p){
+  if(!p) return;
+  if(!p.ui) p.ui = {};
+  if(!p.ui.home) p.ui.home = "dash";
+  if(!Array.isArray(p.ui.menuVisible) || !p.ui.menuVisible.length) p.ui.menuVisible = defaultMenuVisible();
+  // Toujours forcer les vues requises (garantie de non-blocage)
+  MENU_VIEWS.filter(x=>x.required).forEach(x=>{
+    if(!p.ui.menuVisible.includes(x.v)) p.ui.menuVisible.push(x.v);
+  });
+}
+
+function applyMenuCustomization(){
+  const p = cur(); if(!p) return;
+  ensureProfileUI(p);
+  const visible = new Set(p.ui.menuVisible);
+  document.querySelectorAll(".navlink[data-v], .tab[data-v]").forEach(el=>{
+    const v = el.dataset.v;
+    if(!v) return;
+    el.style.display = visible.has(v) ? "" : "none";
+  });
+}
+
+function openPersonnalisation(){
+  const p = cur(); ensureProfileUI(p);
+  const sheet = $("#sheet");
+  const homeRadios = HOME_CANDIDATES.map(v=>{
+    const item = MENU_VIEWS.find(x=>x.v===v); if(!item) return "";
+    const checked = p.ui.home===v ? "checked" : "";
+    return `<label class="perso-home-row">
+      <input type="radio" name="perso-home" value="${v}" ${checked}>
+      <span class="perso-home-ic">${ic(item.ic)}</span>
+      <span class="perso-home-lbl">${escapeHtml(item.label)}</span>
+    </label>`;
+  }).join("");
+  const menuChecks = MENU_VIEWS.map(x=>{
+    const checked = p.ui.menuVisible.includes(x.v) ? "checked" : "";
+    const disabled = x.required ? "disabled" : "";
+    const requiredTag = x.required ? "<span class='perso-req'>Requis</span>" : "";
+    return `<label class="perso-item-row ${x.required?'perso-req-row':''}">
+      <input type="checkbox" data-v="${x.v}" ${checked} ${disabled}>
+      <span class="perso-item-ic">${ic(x.ic)}</span>
+      <span class="perso-item-lbl">${escapeHtml(x.label)}</span>
+      ${requiredTag}
+    </label>`;
+  }).join("");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Personnaliser mon menu</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Choisis l'écran qui s'ouvre quand tu lances l'app, et les modules à garder dans le menu latéral (les autres restent accessibles depuis <b>Plus</b>).</div>
+
+    <div class="pf-lbl" style="margin-top:14px">Écran d'accueil</div>
+    <div class="perso-home-grid">${homeRadios}</div>
+
+    <div class="pf-lbl" style="margin-top:18px">Modules du menu</div>
+    <div class="perso-items">${menuChecks}</div>
+
+    <div class="aff-actions">
+      <button class="sheet-add" id="perso-save">Enregistrer</button>
+      <button class="plus-item" id="perso-reset">Rétablir les valeurs par défaut</button>
+    </div>`;
+  renderIcons(sheet);
+  $("#sheet-close").onclick = closeSheet;
+
+  $("#perso-save").onclick = async ()=>{
+    const home = sheet.querySelector('input[name="perso-home"]:checked')?.value || "dash";
+    const visible = [...sheet.querySelectorAll('.perso-items input[type="checkbox"]:checked')].map(x=>x.dataset.v);
+    // Forcer les requis + inclure la home même si l'utilisateur l'a décochée
+    MENU_VIEWS.filter(x=>x.required).forEach(x=>{ if(!visible.includes(x.v)) visible.push(x.v); });
+    if(!visible.includes(home)) visible.push(home);
+    const p = cur(); ensureProfileUI(p);
+    p.ui.home = home;
+    p.ui.menuVisible = visible;
+    await persist();
+    applyMenuCustomization();
+    closeSheet();
+    showView(home);
+  };
+  $("#perso-reset").onclick = async ()=>{
+    const p = cur(); p.ui = { home:"dash", menuVisible: defaultMenuVisible() };
+    await persist();
+    applyMenuCustomization();
+    openPersonnalisation();
+  };
+
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
    AFFICHES / FLYERS — 4 gabarits SVG, éditeur live, export PNG,
    partage WhatsApp, génération d'image via Pollinations.
    ============================================================ */
@@ -5600,9 +5730,10 @@ window.addEventListener("DOMContentLoaded",async()=>{
   renderTopbar();
   enforceLicense();
   IdleLock.start();
+  applyMenuCustomization();
   const p=cur();
   if(!p.revenus.length && !p.charges.length && !(p.caisse||[]).length){ startOnboard(); showView("onboard"); }
-  else { refreshAll(); showView("dash"); }
+  else { refreshAll(); showView((p.ui&&p.ui.home)||"dash"); }
   const sn=$("#storage-note"); if(sn) sn.textContent=Store.label();
   // installation PWA
   window.addEventListener("beforeinstallprompt",ev=>{ ev.preventDefault(); deferredInstall=ev; updateInstallHint(); });
