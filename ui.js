@@ -210,6 +210,7 @@ async function restore(){
   if(!state.ai){ state.ai={url:"",key:"",model:"openai",enabled:true,provider:"pollinations"}; created=true; }
   if(typeof state.easyMode !== "boolean"){ state.easyMode=false; created=true; }
   if(!state.easyVoice){ state.easyVoice={enabled:true, lang:"fr-FR"}; created=true; }
+  if(typeof state.easyTutoDone !== "boolean"){ state.easyTutoDone=false; created=true; }
   else if(!state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
   if(!state.currentId || !state.profiles[state.currentId]){
     const p=BOSS.blankProfile("Mon business");
@@ -4974,6 +4975,7 @@ function renderEasyHome(){
       <div class="easy-day-row p"><span class="k">Dépenses (${stats.nbD})</span><span class="v">${new Intl.NumberFormat("fr-FR").format(stats.depenses)} F</span></div>
     </div>
 
+    <button class="easy-more" id="easy-tuto" style="margin-bottom:10px">🎓 Revoir le tuto (comment ça marche)</button>
     <button class="easy-more" id="easy-more">📊 Voir mes vrais chiffres (mode complet)</button>
   `;
   $("#easy-vente").onclick=()=>{ EasyMode.stop(); openEasyVente(); };
@@ -4981,6 +4983,7 @@ function renderEasyHome(){
   $("#easy-dette").onclick=()=>{ EasyMode.stop(); openEasyDette(); };
   $("#easy-ai").onclick=()=>{ EasyMode.stop(); openEasyAI(); };
   $("#easy-more").onclick=()=>{ setEasyMode(false); showView("dash"); };
+  $("#easy-tuto").onclick=()=>{ EasyMode.stop(); openEasyTuto(); };
   const ls=$("#easy-listen");
   ls.onclick=()=>{
     if(ls.classList.contains("on")){ EasyMode.stop(); ls.classList.remove("on"); ls.textContent="🔊 Écouter"; return; }
@@ -5000,6 +5003,7 @@ function setEasyMode(on){
   if(state.easyMode){
     renderEasyHome();
     showView("easy");
+    if(!state.easyTutoDone) setTimeout(openEasyTuto, 400);
   }
 }
 
@@ -5151,6 +5155,95 @@ function openEasyAI(){
   };
   const send=$("#eai-send"); if(send) send.onclick=()=>ask(($("#eai-txt").value||"").trim());
   $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ---------- Tuto illustré (7 cartes) — pensé pour patrons peu lettrés ---------- */
+const EASY_TUTO_STEPS = [
+  {
+    emoji: "👋",
+    title: "Bonjour patron !",
+    sub: "Je suis BOSS, ton assistant. Je vais t'expliquer en 7 images.",
+    voice: "Bonjour patron. Je suis BOSS, ton assistant. Je vais t'expliquer en sept images comment ça marche. C'est très simple, tu vas voir."
+  },
+  {
+    emoji: "💰",
+    title: "Ton argent du jour",
+    sub: "En haut, tu vois combien tu as gagné aujourd'hui.",
+    visu: `<div class="tuto-money-demo"><div class="l">Aujourd'hui, tu as gagné</div><div class="n">15 000 F</div><div class="l">C'est bien !</div></div>`,
+    voice: "Ici, en haut, tu vois combien tu as gagné aujourd'hui. Si le chiffre est or, c'est bien. Si c'est rouge, fais attention."
+  },
+  {
+    emoji: "💰",
+    title: "Quand tu vends...",
+    sub: "Appuie sur le gros bouton vert.",
+    visu: `<div class="tuto-visu-btn gain"><div class="em">💰</div>J'ai vendu</div><div class="tuto-arrow">👆</div>`,
+    voice: "Quand tu vends quelque chose, appuie sur le gros bouton vert. J'ai vendu. C'est le premier bouton."
+  },
+  {
+    emoji: "💸",
+    title: "Quand tu payes...",
+    sub: "Appuie sur le gros bouton rouge.",
+    visu: `<div class="tuto-visu-btn perte"><div class="em">💸</div>J'ai payé</div><div class="tuto-arrow">👆</div>`,
+    voice: "Quand tu payes quelque chose, par exemple le charbon ou le transport, appuie sur le bouton rouge. J'ai payé."
+  },
+  {
+    emoji: "👥",
+    title: "Si un client te doit...",
+    sub: "Appuie sur le bouton jaune.",
+    visu: `<div class="tuto-visu-btn dette"><div class="em">👥</div>On me doit</div><div class="tuto-arrow">👆</div>`,
+    voice: "Si un client prend maintenant et paye plus tard, appuie sur le bouton jaune. On me doit. BOSS va se souvenir."
+  },
+  {
+    emoji: "🎙️",
+    title: "Pour parler à BOSS...",
+    sub: "Appuie sur le bouton or et parle.",
+    visu: `<div class="tuto-visu-btn parler"><div class="em">🎙️</div>Parler à BOSS</div><div class="tuto-arrow">👆</div>`,
+    voice: "Pour me parler, appuie sur le bouton or. Parler à BOSS. Tu peux me poser une question, je te réponds."
+  },
+  {
+    emoji: "✅",
+    title: "C'est tout !",
+    sub: "Tu es prêt patron. Bon business à toi.",
+    voice: "Voilà, c'est tout patron. Tu sais tout maintenant. Bon business à toi. Que Dieu bénisse ton commerce."
+  }
+];
+
+function openEasyTuto(){
+  let step = 0;
+  const back = document.getElementById("tuto-back");
+  const card = document.getElementById("tuto-card");
+  const total = EASY_TUTO_STEPS.length;
+
+  function render(){
+    const s = EASY_TUTO_STEPS[step];
+    const dots = EASY_TUTO_STEPS.map((_,i)=>`<span class="tuto-dot${i===step?" on":""}"></span>`).join("");
+    const last = step === total-1;
+    card.innerHTML = `
+      <button class="tuto-skip" id="tuto-skip">${last?"":"Passer"}</button>
+      <div class="tuto-emoji">${s.emoji}</div>
+      <h2 class="tuto-title">${escapeHtml(s.title)}</h2>
+      <div class="tuto-sub">${escapeHtml(s.sub)}</div>
+      ${s.visu?`<div class="tuto-visu">${s.visu}</div>`:""}
+      <button class="tuto-mic" id="tuto-repeat">🔊 Répéter</button>
+      <div class="tuto-dots">${dots}</div>
+      <button class="tuto-next" id="tuto-next">${last?"✓ J'ai compris":"Suivant →"}</button>
+    `;
+    document.getElementById("tuto-skip").onclick = ()=>close();
+    document.getElementById("tuto-repeat").onclick = ()=>EasyMode.speak(s.voice);
+    document.getElementById("tuto-next").onclick = ()=>{
+      EasyMode.stop();
+      if(last){ close(); return; }
+      step++; render();
+    };
+    setTimeout(()=>EasyMode.speak(s.voice), 250);
+  }
+  function close(){
+    EasyMode.stop();
+    back.classList.remove("on");
+    state.easyTutoDone = true; persist();
+  }
+  render();
+  back.classList.add("on");
 }
 
 /* Reconnaît quelques nombres écrits en français : mille, deux mille cinq cent, etc. */
