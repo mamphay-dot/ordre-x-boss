@@ -935,6 +935,12 @@ function openPlus(){
     <button class="plus-item" id="pl-admin">${ic("admin")} Espace administrateur</button>
     <button class="plus-item" id="pl-affiche">${ic("image")} Créer une affiche</button>
     <button class="plus-item" id="pl-perso">${ic("config")} Personnaliser mon menu</button>
+    <button class="plus-item" id="pl-templates">${ic("boutique")} Templates métier prêts</button>
+    <button class="plus-item" id="pl-qr">${ic("share")} QR code de ma boutique</button>
+    <button class="plus-item" id="pl-thermal">${ic("pos")} Imprimer un ticket (Bluetooth)</button>
+    <button class="plus-item" id="pl-stats">${ic("dash")} Statistiques & prévision</button>
+    <button class="plus-item" id="pl-alertes">${ic("warn")} Alertes intelligentes</button>
+    <button class="plus-item" id="pl-fiscal">${ic("doc")} Rapports fiscaux (CGA/CEA)</button>
     <button class="plus-item" id="pl-lock">${ic("lock")} Verrouiller BOSS maintenant</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
@@ -968,6 +974,12 @@ function openPlus(){
   $("#pl-admin").onclick=()=>{ openAdmin(); };
   const pla=$("#pl-affiche"); if(pla) pla.onclick=()=>{ closeSheet(); openAffiches(); };
   const plp=$("#pl-perso"); if(plp) plp.onclick=()=>{ closeSheet(); openPersonnalisation(); };
+  const pltp=$("#pl-templates"); if(pltp) pltp.onclick=()=>{ closeSheet(); openTemplates(); };
+  const plqr=$("#pl-qr"); if(plqr) plqr.onclick=()=>{ closeSheet(); openQRShop(); };
+  const plth=$("#pl-thermal"); if(plth) plth.onclick=()=>{ closeSheet(); openThermalPrint(); };
+  const plst=$("#pl-stats"); if(plst) plst.onclick=()=>{ closeSheet(); openStats(); };
+  const plal=$("#pl-alertes"); if(plal) plal.onclick=()=>{ closeSheet(); openAlertes(); };
+  const plfs=$("#pl-fiscal"); if(plfs) plfs.onclick=()=>{ closeSheet(); openFiscal(); };
   const pll=$("#pl-lock"); if(pll) pll.onclick=()=>{ closeSheet(); IdleLock.forceLockNow(); };
   $("#pl-onboard").onclick=()=>{ closeSheet(); showView("onboard"); startOnboard(); };
   $("#pl-ai").onclick=()=>{ openAISettings(); };
@@ -2942,6 +2954,994 @@ function applyMenuCustomization(){
     if(!v) return;
     el.style.display = visible.has(v) ? "" : "none";
   });
+}
+
+/* ============================================================
+   TEMPLATES MÉTIER — packs prêts à l'emploi pour Afrique de l'Ouest
+   ============================================================ */
+
+const TEMPLATES_METIER = [
+  {
+    id: "maquis-complet", ic: "🍗",
+    title: "Maquis complet",
+    resume: "Poulet, poisson, boissons, attiéké, riz. Charges typiques d'un maquis abidjanais.",
+    metier: "maquis",
+    revenus: [
+      {nom:"Poulet braisé entier",   prix: 3500, cout: 1700, qte: 200, stock: 30, vitrine: true},
+      {nom:"Poulet braisé demi",     prix: 2000, cout:  900, qte: 250, stock: 30, vitrine: true},
+      {nom:"Poisson braisé",         prix: 2500, cout: 1200, qte: 180, stock: 25, vitrine: true},
+      {nom:"Attiéké poisson",        prix: 2000, cout:  900, qte: 300, stock: null, vitrine: true},
+      {nom:"Riz sauce graine",       prix: 1500, cout:  600, qte: 220, stock: null, vitrine: true},
+      {nom:"Bière (grand modèle)",   prix: 1000, cout:  600, qte: 800, stock: 150, vitrine: false},
+      {nom:"Sucrerie 33 cl",         prix:  500, cout:  250, qte: 900, stock: 200, vitrine: false},
+      {nom:"Eau minérale 1,5 L",     prix:  500, cout:  200, qte: 400, stock: 80, vitrine: false}
+    ],
+    charges: [
+      {nom:"Loyer",                montant: 150000},
+      {nom:"Salaires (cuisine)",   montant: 180000},
+      {nom:"Salaires (service)",   montant: 120000},
+      {nom:"Électricité (CIE)",    montant:  60000},
+      {nom:"Gaz & charbon",         montant:  40000},
+      {nom:"Eau (SODECI)",          montant:  15000}
+    ],
+    hours: "11h → 23h · 7/7"
+  },
+  {
+    id: "boutique-cosmetique", ic: "💄",
+    title: "Boutique cosmétique",
+    resume: "Cosmétiques importés, mèches, perruques, huiles capillaires, produits éclaircissants.",
+    metier: "vendeur",
+    revenus: [
+      {nom:"Mèche brésilienne 3 paquets",  prix: 45000, cout: 25000, qte:  8, stock: 12, vitrine: true},
+      {nom:"Perruque courte",               prix: 25000, cout: 12000, qte: 15, stock: 20, vitrine: true},
+      {nom:"Huile capillaire",             prix:  3500, cout:  1500, qte: 60, stock: 40, vitrine: true},
+      {nom:"Crème hydratante visage",       prix:  6000, cout:  2800, qte: 40, stock: 25, vitrine: true},
+      {nom:"Lotion corps",                 prix:  4500, cout:  2000, qte: 50, stock: 30, vitrine: true},
+      {nom:"Rouge à lèvres",               prix:  3000, cout:  1200, qte: 80, stock: 50, vitrine: true}
+    ],
+    charges: [
+      {nom:"Loyer boutique",       montant: 120000},
+      {nom:"Vendeuse",             montant:  80000},
+      {nom:"Data & pub Facebook",  montant:  40000},
+      {nom:"Électricité",          montant:  25000}
+    ]
+  },
+  {
+    id: "couture-atelier", ic: "🧵",
+    title: "Couture / atelier",
+    resume: "Tenues sur mesure, uniformes, retouches, broderie.",
+    metier: "couturier",
+    revenus: [
+      {nom:"Tenue sur mesure femme",       prix: 35000, cout: 15000, qte: 25, stock: null, vitrine: true},
+      {nom:"Tenue sur mesure homme",       prix: 40000, cout: 18000, qte: 20, stock: null, vitrine: true},
+      {nom:"Uniforme scolaire (lot 10)",   prix: 60000, cout: 30000, qte:  8, stock: null, vitrine: true},
+      {nom:"Retouches",                    prix:  3000, cout:   300, qte: 80, stock: null, vitrine: true},
+      {nom:"Broderie personnalisée",       prix:  8000, cout:  2500, qte: 20, stock: null, vitrine: true}
+    ],
+    charges: [
+      {nom:"Atelier (loyer)",     montant: 100000},
+      {nom:"Apprenti",            montant:  60000},
+      {nom:"Électricité",         montant:  25000},
+      {nom:"Fil & fournitures",   montant:  20000}
+    ]
+  },
+  {
+    id: "livreur-mototaxi", ic: "🛵",
+    title: "Livreur / moto-taxi",
+    resume: "Courses moto, livraison colis, transport passagers.",
+    metier: "commercial",
+    revenus: [
+      {nom:"Course courte (< 3 km)",       prix:   500, cout:  100, qte: 400, stock: null, vitrine: true},
+      {nom:"Course moyenne (3-8 km)",      prix:  1000, cout:  200, qte: 250, stock: null, vitrine: true},
+      {nom:"Course longue (> 8 km)",       prix:  2000, cout:  400, qte: 100, stock: null, vitrine: true},
+      {nom:"Livraison colis",              prix:  1500, cout:  300, qte: 180, stock: null, vitrine: true}
+    ],
+    charges: [
+      {nom:"Location moto (mensuel)",  montant:  60000},
+      {nom:"Carburant",                montant:  90000},
+      {nom:"Entretien / réparations",  montant:  25000},
+      {nom:"Assurance",                montant:  10000}
+    ]
+  }
+];
+
+function openTemplates(){
+  const sheet = $("#sheet");
+  const rows = TEMPLATES_METIER.map(t=>`
+    <button class="tpl-card" data-id="${t.id}">
+      <div class="tpl-ic">${t.ic}</div>
+      <div class="tpl-body">
+        <div class="tpl-title">${escapeHtml(t.title)}</div>
+        <div class="tpl-resume">${escapeHtml(t.resume)}</div>
+        <div class="tpl-meta">${t.revenus.length} produits · ${t.charges.length} charges</div>
+      </div>
+    </button>`).join("");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Templates métier</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Choisis un pack pré-configuré. Il remplace les produits et charges du business courant. Idéal pour démarrer vite.</div>
+    <div class="tpl-list">${rows}</div>`;
+  $("#sheet-close").onclick = closeSheet;
+  sheet.querySelectorAll(".tpl-card").forEach(b=>b.onclick = ()=>applyTemplate(b.dataset.id));
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+async function applyTemplate(id){
+  const t = TEMPLATES_METIER.find(x=>x.id===id);
+  if(!t) return;
+  const p = cur();
+  const hasContent = (p.revenus||[]).length || (p.charges||[]).length || (p.caisse||[]).length;
+  if(hasContent && !confirm("Ce template va remplacer tes produits et charges actuels. Continuer ?")) return;
+  p.metier = t.metier;
+  p.unite = (BOSS.METIERS[t.metier]||BOSS.METIERS.vendeur).unite;
+  p.revenus = t.revenus.map(r=>Object.assign({id:"r"+Math.random().toString(36).slice(2,9)}, r));
+  p.charges = t.charges.map(c=>Object.assign({}, c));
+  if(t.hours && p.identite) p.identite.hours = t.hours;
+  await persist();
+  closeSheet();
+  refreshAll();
+  showView("dash");
+  alert("Template « "+t.title+" » appliqué ✅");
+}
+
+/* ============================================================
+   QR CODE — encoder compact, mode byte, ISO/IEC 18004
+   Version 1-10, correction Q (~25%), Reed-Solomon minimal.
+   Suffisant pour les URLs wa.me (~100-150 caractères).
+   ============================================================ */
+const QRCode = (function(){
+  // Tables Reed-Solomon (GF(256), polynôme 0x11D)
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  (function(){ let x=1; for(let i=0;i<255;i++){ EXP[i]=x; LOG[x]=i; x<<=1; if(x&0x100) x^=0x11D; } for(let i=255;i<512;i++) EXP[i]=EXP[i-255]; })();
+  function gfMul(a,b){ return (a===0||b===0)?0:EXP[LOG[a]+LOG[b]]; }
+  // Génère polynôme générateur de degré n
+  function rsGenPoly(n){
+    let p=[1]; for(let i=0;i<n;i++){ const q=[]; for(let j=0;j<=p.length;j++){ let v=0; if(j<p.length) v^=p[j]; if(j>0) v^=gfMul(p[j-1], EXP[i]); q[j]=v; } p=q; } return p;
+  }
+  function rsEncode(data, ecLen){
+    const gen = rsGenPoly(ecLen);
+    const res = new Uint8Array(data.length + ecLen);
+    res.set(data);
+    for(let i=0;i<data.length;i++){
+      const c = res[i]; if(c===0) continue;
+      for(let j=0;j<gen.length;j++) res[i+j] ^= gfMul(gen[j], c);
+    }
+    return res.slice(data.length);
+  }
+  // Tables version : [capacité bytes en mode byte, correction Q]
+  const CAP_BYTE_Q = { 1:11, 2:20, 3:32, 4:46, 5:60, 6:74, 7:86, 8:108, 9:130, 10:151 };
+  // ECC info par version pour correction Q : [total data bytes, block1_data, blocks, block2_data (0 si un seul groupe)]
+  const ECC_Q = {
+    1: { total:26, ec:13, groups:[{n:1, data:13}] },
+    2: { total:44, ec:22, groups:[{n:1, data:22}] },
+    3: { total:70, ec:18, groups:[{n:2, data:17}] },
+    4: { total:100, ec:26, groups:[{n:2, data:24}] },
+    5: { total:134, ec:18, groups:[{n:2, data:15},{n:2, data:16}] },
+    6: { total:172, ec:24, groups:[{n:4, data:19}] },
+    7: { total:196, ec:18, groups:[{n:2, data:14},{n:4, data:15}] },
+    8: { total:242, ec:22, groups:[{n:4, data:18},{n:2, data:19}] },
+    9: { total:292, ec:20, groups:[{n:4, data:16},{n:4, data:17}] },
+    10:{ total:346, ec:24, groups:[{n:6, data:19},{n:2, data:20}] }
+  };
+  function pickVersion(len){
+    for(const v of [1,2,3,4,5,6,7,8,9,10]){
+      // 4 bits mode + 8 bits length (byte mode versions 1-9) ou 16 bits (10+)
+      const lenBits = v<10 ? 8 : 16;
+      const totalBits = 4 + lenBits + len*8;
+      const dataBytes = ECC_Q[v].groups.reduce((s,g)=>s + g.n * g.data, 0);
+      if(totalBits <= dataBytes * 8) return v;
+    }
+    return null;
+  }
+  function encodeData(text, v){
+    const bytes = new TextEncoder().encode(text);
+    const lenBits = v<10 ? 8 : 16;
+    // Stream de bits
+    const bits = [];
+    const pushBits = (val, n)=>{ for(let i=n-1;i>=0;i--) bits.push((val>>i)&1); };
+    pushBits(0b0100, 4); // mode byte
+    pushBits(bytes.length, lenBits);
+    for(const b of bytes) pushBits(b, 8);
+    const info = ECC_Q[v];
+    const dataBytes = info.groups.reduce((s,g)=>s + g.n * g.data, 0);
+    // Terminator jusqu'à 4 bits
+    for(let i=0;i<4 && bits.length < dataBytes*8; i++) bits.push(0);
+    while(bits.length % 8) bits.push(0);
+    const data = new Uint8Array(dataBytes);
+    for(let i=0;i<bits.length/8;i++){ let b=0; for(let j=0;j<8;j++) b = (b<<1) | (bits[i*8+j]||0); data[i]=b; }
+    // Padding
+    let pad = 0xEC;
+    for(let i=Math.ceil(bits.length/8); i<dataBytes; i++){ data[i] = pad; pad = (pad===0xEC)?0x11:0xEC; }
+    return data;
+  }
+  function interleave(data, v){
+    const info = ECC_Q[v];
+    const blocks = [];
+    let off = 0;
+    for(const g of info.groups){
+      for(let i=0;i<g.n;i++){
+        const d = data.slice(off, off+g.data);
+        off += g.data;
+        const ec = rsEncode(d, info.ec);
+        blocks.push({data:d, ec});
+      }
+    }
+    const maxD = Math.max(...blocks.map(b=>b.data.length));
+    const out = [];
+    for(let i=0;i<maxD;i++) for(const b of blocks) if(i<b.data.length) out.push(b.data[i]);
+    for(let i=0;i<info.ec;i++) for(const b of blocks) out.push(b.ec[i]);
+    return out;
+  }
+  // Format info (mask + level) — pré-calculé (level Q = 3, mask 0)
+  const FORMAT_Q0 = 0x355F; // level Q + mask 0 encodé BCH
+  const FORMAT_LEVEL = { Q: [0x355F,0x3068,0x3F31,0x3A06,0x24B4,0x2183,0x2EDA,0x2BED] };
+  // Pattern de finder + timing
+  function newMatrix(size){ const m = []; for(let i=0;i<size;i++){ m[i]=new Int8Array(size); m[i].fill(-1); } return m; }
+  function setFinder(m, x, y){
+    for(let dy=-1; dy<=7; dy++) for(let dx=-1; dx<=7; dx++){
+      const nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=m.length||ny>=m.length) continue;
+      const inner = (dx===0||dx===6||dy===0||dy===6) || (dx>=2&&dx<=4&&dy>=2&&dy<=4);
+      m[ny][nx] = (dx>=0&&dx<=6&&dy>=0&&dy<=6) ? (inner?1:0) : 0;
+    }
+  }
+  function setTiming(m){
+    const s = m.length;
+    for(let i=8;i<s-8;i++){ m[6][i] = (i%2)?0:1; m[i][6] = (i%2)?0:1; }
+  }
+  // Alignment patterns (positions) par version
+  const ALIGN_POS = {
+    1:[], 2:[6,18], 3:[6,22], 4:[6,26], 5:[6,30], 6:[6,34],
+    7:[6,22,38], 8:[6,24,42], 9:[6,26,46], 10:[6,28,50]
+  };
+  function setAlignment(m, v){
+    const pos = ALIGN_POS[v];
+    for(const y of pos) for(const x of pos){
+      if(m[y][x] >= 0) continue;
+      for(let dy=-2; dy<=2; dy++) for(let dx=-2; dx<=2; dx++){
+        const inner = (dx>=-1&&dx<=1&&dy>=-1&&dy<=1);
+        const center = (dx===0&&dy===0);
+        m[y+dy][x+dx] = (Math.abs(dx)===2||Math.abs(dy)===2||center)?1:0;
+      }
+    }
+  }
+  function setDarkModule(m, v){ const s = m.length; m[4*v+9][8] = 1; }
+  function reserveFormat(m){
+    const s = m.length;
+    for(let i=0;i<9;i++){ if(m[8][i]<0) m[8][i]=0; if(m[i][8]<0) m[i][8]=0; }
+    for(let i=0;i<8;i++){ m[8][s-1-i] = m[8][s-1-i]<0?0:m[8][s-1-i]; m[s-1-i][8] = m[s-1-i][8]<0?0:m[s-1-i][8]; }
+  }
+  function placeData(m, data){
+    const s = m.length;
+    let bitIdx = 0, upward = true;
+    for(let col=s-1; col>0; col-=2){
+      if(col===6) col--;
+      for(let row=0; row<s; row++){
+        const y = upward ? s-1-row : row;
+        for(let c=0;c<2;c++){
+          const x = col - c;
+          if(m[y][x] < 0){
+            const byte = data[bitIdx>>3];
+            const bit = (byte >> (7 - (bitIdx&7))) & 1;
+            m[y][x] = bit;
+            bitIdx++;
+          }
+        }
+      }
+      upward = !upward;
+    }
+  }
+  function applyMask(m, mask){
+    const s = m.length;
+    // Détermine quels modules sont data (pas fixes)
+    const isFixed = [];
+    for(let y=0;y<s;y++){ isFixed[y] = new Uint8Array(s); }
+    // Marquer les finders, timing, alignment comme fixes
+    const finderZones = [[0,0],[s-7,0],[0,s-7]];
+    for(const [x,y] of finderZones) for(let dy=-1;dy<=7;dy++) for(let dx=-1;dx<=7;dx++){
+      const nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=s||ny>=s) continue;
+      isFixed[ny][nx] = 1;
+    }
+    for(let i=0;i<s;i++){ isFixed[6][i]=1; isFixed[i][6]=1; }
+    for(let i=0;i<9;i++){ isFixed[8][i]=1; isFixed[i][8]=1; }
+    for(let i=0;i<8;i++){ isFixed[8][s-1-i]=1; isFixed[s-1-i][8]=1; }
+    // Alignment
+    const v = (s-17)/4;
+    const pos = ALIGN_POS[v]||[];
+    for(const yc of pos) for(const xc of pos){
+      let skip = false;
+      for(const [fx,fy] of [[3,3],[s-4,3],[3,s-4]]) if(Math.abs(xc-fx)<=4 && Math.abs(yc-fy)<=4) skip=true;
+      if(skip) continue;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++) isFixed[yc+dy][xc+dx] = 1;
+    }
+    const maskFn = [
+      (x,y)=>(x+y)%2===0,
+      (x,y)=>y%2===0,
+      (x,y)=>x%3===0,
+      (x,y)=>(x+y)%3===0,
+      (x,y)=>(Math.floor(y/2)+Math.floor(x/3))%2===0,
+      (x,y)=>((x*y)%2)+((x*y)%3)===0,
+      (x,y)=>(((x*y)%2)+((x*y)%3))%2===0,
+      (x,y)=>(((x+y)%2)+((x*y)%3))%2===0
+    ][mask];
+    for(let y=0;y<s;y++) for(let x=0;x<s;x++) if(!isFixed[y][x] && maskFn(x,y)) m[y][x] ^= 1;
+  }
+  function drawFormat(m, mask){
+    const s = m.length;
+    const fmt = FORMAT_LEVEL.Q[mask];
+    for(let i=0;i<15;i++){
+      const bit = (fmt>>(14-i))&1;
+      // Bloc gauche
+      if(i<6) m[i][8] = bit;
+      else if(i<8) m[i+1][8] = bit;
+      else m[s-15+i][8] = bit;
+      // Bloc droit-haut
+      if(i<8) m[8][s-1-i] = bit;
+      else if(i<9) m[8][15-i-1+1] = bit;
+      else m[8][15-i-1] = bit;
+    }
+    // Format extra dark
+    m[s-8][8] = 1;
+  }
+  function buildMatrix(text, mask){
+    const v = pickVersion(new TextEncoder().encode(text).length);
+    if(!v) throw new Error("Texte trop long pour QR v1-10");
+    const size = 17 + v*4;
+    const m = newMatrix(size);
+    setFinder(m, 0, 0); setFinder(m, size-7, 0); setFinder(m, 0, size-7);
+    setTiming(m);
+    setAlignment(m, v);
+    setDarkModule(m, v);
+    reserveFormat(m);
+    const data = encodeData(text, v);
+    const interleaved = interleave(data, v);
+    const bytes = new Uint8Array(interleaved);
+    placeData(m, bytes);
+    applyMask(m, mask);
+    drawFormat(m, mask);
+    // Convertir en booléens (0/1 seulement)
+    for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(m[y][x]<0) m[y][x]=0;
+    return m;
+  }
+  // Choix du meilleur mask (pénalité minimale)
+  function scoreMatrix(m){
+    const s = m.length;
+    let score = 0;
+    // Rangées / colonnes 5+ identiques
+    for(let y=0;y<s;y++){ let run=1; for(let x=1;x<s;x++){ if(m[y][x]===m[y][x-1]) run++; else { if(run>=5) score += 3+(run-5); run=1; } } if(run>=5) score += 3+(run-5); }
+    for(let x=0;x<s;x++){ let run=1; for(let y=1;y<s;y++){ if(m[y][x]===m[y-1][x]) run++; else { if(run>=5) score += 3+(run-5); run=1; } } if(run>=5) score += 3+(run-5); }
+    // Blocs 2x2
+    for(let y=0;y<s-1;y++) for(let x=0;x<s-1;x++) if(m[y][x]===m[y][x+1] && m[y][x]===m[y+1][x] && m[y][x]===m[y+1][x+1]) score += 3;
+    // Dark ratio proche de 50%
+    let dark=0; for(let y=0;y<s;y++) for(let x=0;x<s;x++) if(m[y][x]) dark++;
+    score += Math.floor(Math.abs(dark*20 - s*s*10)/(s*s)) * 10;
+    return score;
+  }
+  function encode(text){
+    let best=null, bestScore=Infinity, bestMask=0;
+    for(let mask=0; mask<8; mask++){
+      const m = buildMatrix(text, mask);
+      const s = scoreMatrix(m);
+      if(s < bestScore){ best = m; bestScore = s; bestMask = mask; }
+    }
+    return best;
+  }
+  function toSVG(matrix, size, color, bg){
+    const n = matrix.length;
+    const cell = size / (n + 8);
+    const off = cell * 4;
+    let path = "";
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(matrix[y][x]){
+      path += `M${(off+x*cell).toFixed(2)} ${(off+y*cell).toFixed(2)}h${cell.toFixed(2)}v${cell.toFixed(2)}h-${cell.toFixed(2)}z`;
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="${bg||'#ffffff'}"/><path d="${path}" fill="${color||'#000000'}"/></svg>`;
+  }
+  return { encode, toSVG };
+})();
+
+function openQRShop(){
+  const p = cur();
+  const phone = (p.identite && p.identite.tel) || "";
+  const cleanPhone = String(phone).replace(/\D/g,"");
+  const cat = BOSS.waCatalogueText(p) || `Bonjour, je m'intéresse à ${p.name}`;
+  const waUrl = "https://wa.me/" + cleanPhone + "?text=" + encodeURIComponent(cat);
+  const shopUrl = location.origin + location.pathname; // fallback si pas de numéro
+  const target = cleanPhone ? waUrl : shopUrl;
+
+  let matrix = null;
+  try { matrix = QRCode.encode(target); }
+  catch(e){ /* URL trop longue : fallback catalogue court */
+    const short = cleanPhone ? "https://wa.me/"+cleanPhone : shopUrl;
+    matrix = QRCode.encode(short);
+  }
+  const svg = QRCode.toSVG(matrix, 480, "#0E0E0F", "#ffffff");
+
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>QR code de ta boutique</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Un scan de ce QR ouvre directement <b>WhatsApp</b> avec ta liste de produits pré-remplie. Colle-le à l'entrée, sur ta carte de visite, sur les emballages.</div>
+    <div class="qr-preview" id="qr-preview">${svg}</div>
+    <div class="ps-note qr-target">${cleanPhone?"→ WhatsApp <b>"+escapeHtml(phone)+"</b>":"→ ouvre l'app BOSS (aucun numéro renseigné)"}</div>
+    <div class="aff-actions">
+      <button class="sheet-add" id="qr-dl-png">📥 Télécharger PNG (haute résolution)</button>
+      <button class="plus-item" id="qr-dl-svg">📥 Télécharger SVG (vectoriel)</button>
+      <button class="plus-item" id="qr-print">🖨️ Imprimer (A4)</button>
+    </div>`;
+  $("#sheet-close").onclick = closeSheet;
+
+  async function svgToPngBlob(svgStr, size){
+    const svgBlob = new Blob([svgStr], { type:"image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    try {
+      return await new Promise((res,rej)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          const cv = document.createElement("canvas");
+          cv.width = size; cv.height = size;
+          const ctx = cv.getContext("2d");
+          ctx.fillStyle = "#fff"; ctx.fillRect(0,0,size,size);
+          ctx.drawImage(img, 0, 0, size, size);
+          cv.toBlob(b => b?res(b):rej(new Error("toBlob a échoué")), "image/png", 0.95);
+        };
+        img.onerror = ()=>rej(new Error("SVG illisible"));
+        img.src = url;
+      });
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  $("#qr-dl-png").onclick = async()=>{
+    const bigSvg = QRCode.toSVG(matrix, 1200, "#0E0E0F", "#ffffff");
+    const blob = await svgToPngBlob(bigSvg, 1200);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `qr-${(p.name||"boutique").toLowerCase().replace(/\s+/g,"-")}.png`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  };
+  $("#qr-dl-svg").onclick = ()=>{
+    const blob = new Blob([QRCode.toSVG(matrix, 1200, "#0E0E0F", "#ffffff")], {type:"image/svg+xml"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `qr-${(p.name||"boutique").toLowerCase().replace(/\s+/g,"-")}.svg`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  };
+  $("#qr-print").onclick = ()=>{
+    const bigSvg = QRCode.toSVG(matrix, 600, "#0E0E0F", "#ffffff");
+    const w = window.open("","_blank");
+    if(!w){ alert("Autorise les popups pour imprimer."); return; }
+    w.document.write(`<!doctype html><html><head><title>QR ${escapeHtml(p.name)}</title>
+      <style>@page{size:A4 portrait;margin:20mm}body{margin:0;padding:0;font-family:sans-serif;text-align:center;color:#0E0E0F}
+      h1{margin:0 0 8px 0;font-size:28pt}.sub{color:#666;margin-bottom:20mm}.qr{width:140mm;height:140mm;margin:auto}
+      .cta{font-size:14pt;margin-top:12mm}</style></head>
+      <body onload="window.print();setTimeout(()=>window.close(),300)">
+      <h1>${escapeHtml(p.name)}</h1><div class="sub">${escapeHtml((p.identite&&p.identite.slogan)||"")}</div>
+      <div class="qr">${bigSvg}</div><div class="cta">📱 Scanne pour commander sur WhatsApp</div>
+      ${cleanPhone?`<div style="margin-top:6mm;font-size:12pt">📞 ${escapeHtml(phone)}</div>`:""}
+      </body></html>`);
+    w.document.close();
+  };
+
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   IMPRESSION THERMAL BLUETOOTH ESC/POS 58 mm
+   Compatible imprimantes Xprinter, Milestone, Rongta,
+   MunbynEspon-like via service BLE générique 000018f0.
+   ============================================================ */
+const Thermal = (function(){
+  const SERVICE = "000018f0-0000-1000-8000-00805f9b34fb";
+  const CHAR    = "00002af1-0000-1000-8000-00805f9b34fb";
+  let device = null, characteristic = null;
+
+  async function connect(){
+    if(!navigator.bluetooth) throw new Error("Web Bluetooth non supporté sur ce navigateur (utilise Chrome Android)");
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SERVICE] }, { namePrefix: "Printer" }, { namePrefix: "BlueTooth" }, { namePrefix: "MTP" }, { namePrefix: "MPT" }],
+      optionalServices: [SERVICE]
+    });
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(SERVICE);
+    characteristic = await svc.getCharacteristic(CHAR);
+    return { name: device.name || "Imprimante" };
+  }
+
+  function encoder(){ return new TextEncoder(); }
+  function bytes(arr){ return new Uint8Array(arr); }
+
+  const CMD = {
+    init:         bytes([0x1B, 0x40]),          // ESC @ : reset
+    align_left:   bytes([0x1B, 0x61, 0]),
+    align_center: bytes([0x1B, 0x61, 1]),
+    align_right:  bytes([0x1B, 0x61, 2]),
+    bold_on:      bytes([0x1B, 0x45, 1]),
+    bold_off:     bytes([0x1B, 0x45, 0]),
+    dbl_on:       bytes([0x1D, 0x21, 0x11]),    // taille x2
+    dbl_off:      bytes([0x1D, 0x21, 0x00]),
+    line:         bytes([0x0A]),
+    cut:          bytes([0x1D, 0x56, 0x42, 0x00])
+  };
+
+  async function writeChunked(data){
+    if(!characteristic) throw new Error("Imprimante non connectée");
+    // BLE MTU limité : envoi par tranches de 20 octets
+    const chunk = 20;
+    for(let i=0; i<data.length; i+=chunk){
+      await characteristic.writeValue(data.slice(i, i+chunk));
+    }
+  }
+
+  function concat(arrs){
+    const total = arrs.reduce((s,a)=>s+a.length, 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for(const a of arrs){ out.set(a, off); off += a.length; }
+    return out;
+  }
+  function txt(s){ return encoder().encode(s); }
+
+  // Génère un ticket 58 mm (32 chars/ligne)
+  function ticketFor(p, ecritures, totalHT, totalTVA, totalTTC, mode, recu){
+    const W = 32;
+    const line = "-".repeat(W)+"\n";
+    const center = s => { const pad = Math.max(0, Math.floor((W-s.length)/2)); return " ".repeat(pad)+s+"\n"; };
+    const twoCol = (l,r)=>{ const spc = Math.max(1, W - l.length - r.length); return l + " ".repeat(spc) + r + "\n"; };
+
+    const parts = [
+      CMD.init,
+      CMD.align_center, CMD.bold_on, CMD.dbl_on,
+      txt(p.name.toUpperCase().slice(0,W/2) + "\n"),
+      CMD.dbl_off, CMD.bold_off,
+      txt((p.identite?.adresse||"")+"\n"),
+      txt((p.identite?.tel||"")+"\n"),
+      CMD.align_left,
+      txt(line),
+      txt(twoCol("Ticket #"+Math.floor(Date.now()/1000).toString().slice(-6), new Date().toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}))),
+      txt(line)
+    ];
+    (ecritures||[]).forEach(e=>{
+      const nom = (e.nom||"Article").slice(0, W-10);
+      const px = BOSS.fmtF(e.total||e.montant||0);
+      parts.push(txt(twoCol(nom, px)));
+      if(e.qte>1) parts.push(txt("  x"+e.qte+" @ "+BOSS.fmtF(e.prix||0)+"\n"));
+    });
+    parts.push(txt(line));
+    if(totalHT!=null && totalTVA>0){
+      parts.push(txt(twoCol("Total HT", BOSS.fmtF(totalHT))));
+      parts.push(txt(twoCol("TVA", BOSS.fmtF(totalTVA))));
+    }
+    parts.push(CMD.bold_on);
+    parts.push(txt(twoCol("TOTAL", BOSS.fmtF(totalTTC))));
+    parts.push(CMD.bold_off);
+    if(recu){
+      parts.push(txt(twoCol("Reçu ("+mode+")", BOSS.fmtF(recu))));
+      const rendu = recu - totalTTC;
+      if(rendu>0) parts.push(txt(twoCol("Rendu", BOSS.fmtF(rendu))));
+    }
+    parts.push(txt(line));
+    parts.push(CMD.align_center);
+    parts.push(txt("Merci BOSS !\n"));
+    if(p.identite?.slogan) parts.push(txt(p.identite.slogan+"\n"));
+    parts.push(CMD.line, CMD.line, CMD.line);
+    parts.push(CMD.cut);
+    return concat(parts);
+  }
+
+  async function printTicket(payload){ await writeChunked(ticketFor(payload.p, payload.lignes, payload.ht, payload.tva, payload.ttc, payload.mode, payload.recu)); }
+  async function printTestPage(){
+    if(!characteristic) throw new Error("Imprimante non connectée");
+    const p = cur();
+    const data = concat([
+      CMD.init, CMD.align_center, CMD.bold_on, CMD.dbl_on,
+      txt((p.name||"BOSS")+"\n"),
+      CMD.dbl_off, CMD.bold_off,
+      txt("--- TEST IMPRESSION ---\n"),
+      CMD.align_left,
+      txt("Test 32 caractères max ligne\n"),
+      txt(new Date().toLocaleString("fr-FR")+"\n"),
+      CMD.line, CMD.line, CMD.line, CMD.cut
+    ]);
+    await writeChunked(data);
+  }
+  function connected(){ return !!(device && device.gatt && device.gatt.connected); }
+  async function disconnect(){ if(device && device.gatt && device.gatt.connected) device.gatt.disconnect(); device=null; characteristic=null; }
+  return { connect, connected, disconnect, printTicket, printTestPage };
+})();
+
+function openThermalPrint(){
+  const p = cur();
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Imprimer un ticket Bluetooth</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Imprimante thermique 58 mm (Xprinter, Rongta, Milestone…). Fonctionne sur <b>Chrome Android</b>. iPhone ne supporte pas Web Bluetooth — utilise l'app Chrome sur Android.</div>
+    <div class="thermal-status" id="thermal-status">${Thermal.connected()?"✅ Connectée à : "+ (Thermal.device?.name||"imprimante") : "❌ Non connectée"}</div>
+    <button class="sheet-add" id="th-connect">🔗 Connecter une imprimante</button>
+    <button class="plus-item" id="th-test">🖨️ Imprimer une page de test</button>
+    <div class="pf-lbl" style="margin-top:14px">Réimprimer le dernier ticket de caisse</div>
+    <div class="ps-note">Sélectionne une vente récente pour la ré-imprimer.</div>
+    <div id="th-recent"></div>`;
+  $("#sheet-close").onclick = closeSheet;
+  $("#th-connect").onclick = async()=>{
+    try {
+      const info = await Thermal.connect();
+      $("#thermal-status").textContent = "✅ Connectée à : " + info.name;
+    } catch(e){ alert("Échec : "+(e.message||"connexion refusée")); }
+  };
+  $("#th-test").onclick = async()=>{
+    if(!Thermal.connected()){ alert("Connecte d'abord une imprimante."); return; }
+    try { await Thermal.printTestPage(); alert("Page de test envoyée ✅"); }
+    catch(e){ alert("Échec : "+e.message); }
+  };
+  // Dernières ventes réimprimables
+  const recent = (p.caisse||[]).filter(e=>e.type==="vente").slice(-10).reverse();
+  const box = $("#th-recent");
+  if(!recent.length){ box.innerHTML = "<div class='ps-note'>Aucune vente enregistrée.</div>"; }
+  else {
+    box.innerHTML = recent.map((e,i)=>`
+      <div class="th-row">
+        <div><b>${escapeHtml(e.motif||"Vente")}</b><br><span class="muted2">${fmtDate(e.ts)} · ${BOSS.fmtF(e.montant)}</span></div>
+        <button class="btn-mini" data-idx="${i}">🖨️ Réimprimer</button>
+      </div>`).join("");
+    box.querySelectorAll("[data-idx]").forEach(b=>b.onclick = async()=>{
+      if(!Thermal.connected()){ alert("Connecte d'abord une imprimante."); return; }
+      const e = recent[+b.dataset.idx];
+      try {
+        await Thermal.printTicket({
+          p, lignes: [{nom: e.motif||"Vente", total: e.montant, prix: e.montant, qte: 1}],
+          ht: null, tva: null, ttc: e.montant, mode: e.canal||"especes", recu: null
+        });
+        alert("Ticket envoyé ✅");
+      } catch(err){ alert("Échec : "+err.message); }
+    });
+  }
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   STATISTIQUES + PRÉVISION TRÉSORERIE MULTI-HORIZONS
+   ============================================================ */
+const HORIZONS = [7, 14, 30, 60, 90];
+let __statsHorizon = 30;
+
+function openStats(){ renderStats(); }
+
+function computeSalesForRange(p, fromTs){
+  const c = (p.caisse||[]).filter(e => e.type==="vente" && (fromTs==null || e.ts>=fromTs));
+  const totalCA = c.reduce((s,e)=>s+(e.montant||0), 0);
+  const nb = c.length;
+  return { totalCA, nb, entries: c };
+}
+function computeExpensesForRange(p, fromTs){
+  const c = (p.caisse||[]).filter(e => e.type==="depense" && (fromTs==null || e.ts>=fromTs));
+  return c.reduce((s,e)=>s+(e.montant||0), 0);
+}
+function topProduits(p, fromTs, k){
+  const map = new Map();
+  (p.caisse||[]).filter(e=>e.type==="vente" && (fromTs==null||e.ts>=fromTs)).forEach(e=>{
+    const key = (e.motif||"Autres").trim() || "Autres";
+    map.set(key, (map.get(key)||0) + (e.montant||0));
+  });
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0, k);
+}
+function topClients(p, fromTs, k){
+  const map = new Map();
+  (p.commandes||[]).filter(o => fromTs==null || (o.createdAt||0)>=fromTs).forEach(o=>{
+    const key = (o.clientNom||"Client").trim() || "Client";
+    map.set(key, (map.get(key)||0) + BOSS.orderTotal(o));
+  });
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0, k);
+}
+function forecastCash(p, days){
+  // Base : CA moyen jour sur 30 j récents, charges fixes mensuelles rapportées au jour
+  const now = Date.now();
+  const window = 30*86400000;
+  const {totalCA} = computeSalesForRange(p, now-window);
+  const dailyCA = totalCA / 30;
+  const monthlyCharges = (p.charges||[]).reduce((s,c)=>s+(c.montant||0), 0);
+  const dailyCharges = monthlyCharges / 30;
+  const dailyExpenses = computeExpensesForRange(p, now-window) / 30;
+  const netDaily = dailyCA - dailyCharges - dailyExpenses;
+  // Position actuelle (soldes trésorerie)
+  const balances = BOSS.treasuryBalances(p);
+  const start = balances.total || 0;
+  const points = [];
+  for(let i=0; i<=days; i++){
+    points.push({ day: i, value: start + netDaily * i });
+  }
+  return { points, dailyCA, dailyCharges, dailyExpenses, netDaily, start, projected: start + netDaily*days };
+}
+
+function svgBarChart(items, w, h, color){
+  if(!items.length) return `<div class="ps-note">Pas encore de données.</div>`;
+  const max = Math.max(1, ...items.map(x=>x[1]));
+  const bw = (w - 60) / items.length - 8;
+  const bars = items.map((it,i)=>{
+    const x = 60 + i * ((w-60)/items.length) + 4;
+    const bh = Math.max(4, (it[1]/max) * (h-60));
+    const y = h - 30 - bh;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${color}" rx="4"/>
+      <text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" font-size="11" fill="#ECECEE" text-anchor="middle">${BOSS.fmtF(it[1]).replace(/\s/g," ")}</text>
+      <text x="${(x+bw/2).toFixed(1)}" y="${h-10}" font-size="10" fill="#9A9AA0" text-anchor="middle">${escapeSvg((it[0]||"").slice(0,12))}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">${bars}</svg>`;
+}
+function svgLineChart(points, w, h, color, threshold){
+  if(!points.length) return "";
+  const values = points.map(p=>p.value);
+  const min = Math.min(0, ...values), max = Math.max(1, ...values);
+  const range = max - min || 1;
+  const path = points.map((p,i)=>{
+    const x = 40 + (i/(points.length-1)) * (w-60);
+    const y = h - 30 - ((p.value - min)/range) * (h-60);
+    return (i===0?"M":"L") + x.toFixed(1) + " " + y.toFixed(1);
+  }).join(" ");
+  // Zone rouge sous zéro
+  const zeroY = h - 30 - ((0 - min)/range) * (h-60);
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
+    ${threshold!=null?`<line x1="40" y1="${zeroY.toFixed(1)}" x2="${w-20}" y2="${zeroY.toFixed(1)}" stroke="#f96" stroke-dasharray="4 4" stroke-width="1"/>
+      <text x="${w-25}" y="${(zeroY-4).toFixed(1)}" font-size="10" fill="#f96" text-anchor="end">seuil 0</text>`:""}
+    <path d="${path}" stroke="${color}" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+    <text x="40" y="20" font-size="11" fill="#9A9AA0">Trésorerie prévue (FCFA)</text>
+    <text x="40" y="${h-4}" font-size="10" fill="#9A9AA0">J+0</text>
+    <text x="${w-20}" y="${h-4}" font-size="10" fill="#9A9AA0" text-anchor="end">J+${points[points.length-1].day}</text>
+  </svg>`;
+}
+
+function renderStats(){
+  const p = cur();
+  const now = Date.now();
+  const from = now - __statsHorizon*86400000;
+  const sales = computeSalesForRange(p, from);
+  const expenses = computeExpensesForRange(p, from);
+  const net = sales.totalCA - expenses;
+  const prods = topProduits(p, from, 5);
+  const clients = topClients(p, from, 5);
+  const fc = forecastCash(p, __statsHorizon);
+
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Statistiques & prévision</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="stats-tabs">
+      ${HORIZONS.map(h=>`<button class="stats-tab ${__statsHorizon===h?'on':''}" data-h="${h}">${h}j</button>`).join("")}
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Sur ${__statsHorizon} derniers jours</div>
+      <div class="ad-row"><span>Chiffre d'affaires</span><b>${BOSS.fmtF(sales.totalCA)}</b></div>
+      <div class="ad-row"><span>Dépenses caisse</span><b>${BOSS.fmtF(expenses)}</b></div>
+      <div class="ad-row"><span>Bénéfice net période</span><b style="color:${net>=0?'#7c7':'#f96'}">${BOSS.fmtF(net)}</b></div>
+      <div class="ad-row"><span>Nombre de ventes</span><b>${sales.nb}</b></div>
+      <div class="ad-row"><span>Panier moyen</span><b>${BOSS.fmtF(sales.nb?sales.totalCA/sales.nb:0)}</b></div>
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Prévision trésorerie J+${__statsHorizon}</div>
+      <div class="ad-row"><span>Solde actuel</span><b>${BOSS.fmtF(fc.start)}</b></div>
+      <div class="ad-row"><span>CA moyen / jour</span><b>${BOSS.fmtF(fc.dailyCA)}</b></div>
+      <div class="ad-row"><span>Charges fixes / jour</span><b>${BOSS.fmtF(fc.dailyCharges + fc.dailyExpenses)}</b></div>
+      <div class="ad-row"><span>Net / jour</span><b style="color:${fc.netDaily>=0?'#7c7':'#f96'}">${BOSS.fmtF(fc.netDaily)}</b></div>
+      <div class="ad-row"><span>Solde projeté J+${__statsHorizon}</span><b style="color:${fc.projected>=0?'#7c7':'#f96'}">${BOSS.fmtF(fc.projected)}</b></div>
+      ${svgLineChart(fc.points, 640, 220, "#C8A23A", 0)}
+      ${fc.projected < 0 ? `<div class="ps-note" style="color:#f96;margin-top:8px">⚠️ Ta trésorerie deviendra négative avant J+${__statsHorizon}. Réduis les charges ou augmente les ventes.</div>` : ""}
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Top 5 produits</div>
+      ${svgBarChart(prods, 640, 200, "#C8A23A")}
+    </div>
+    <div class="ad-card">
+      <div class="ad-card-title">Top 5 clients (commandes)</div>
+      ${svgBarChart(clients, 640, 200, "#5a8fb8")}
+    </div>`;
+  $("#sheet-close").onclick = closeSheet;
+  sheet.querySelectorAll(".stats-tab").forEach(b=>b.onclick = ()=>{ __statsHorizon = parseInt(b.dataset.h, 10); renderStats(); });
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   ALERTES INTELLIGENTES (horizons + push PWA optionnel)
+   ============================================================ */
+function computeAlertes(p, horizonDays){
+  const now = Date.now();
+  const alerts = [];
+  const stockThreshold = 5;
+  const lowStock = (p.revenus||[]).filter(r=>typeof r.stock==="number" && r.stock<=stockThreshold);
+  lowStock.forEach(r=>alerts.push({level:"warn", icon:"📦", txt:`Stock bas : <b>${escapeHtml(r.nom)}</b> (${r.stock} restant)`}));
+
+  const overdueMs = horizonDays * 86400000;
+  const overdueDebts = (p.carnet||[]).filter(d=>!d.paye && (now - (d.ts||now)) >= overdueMs);
+  overdueDebts.forEach(d=>alerts.push({level:"danger", icon:"⏰", txt:`Dette impayée > ${horizonDays}j : <b>${escapeHtml(d.client||"Client")}</b> — ${BOSS.fmtF(d.montant)}${d.motif?" ("+escapeHtml(d.motif)+")":""}`}));
+
+  const ordersOverdue = (p.commandes||[]).filter(o=>{
+    if(o.statut==="livree"||o.statut==="payee"||o.statut==="annulee") return false;
+    return (now - (o.createdAt||now)) >= 7*86400000;
+  });
+  ordersOverdue.forEach(o=>alerts.push({level:"warn", icon:"📋", txt:`Commande en attente depuis 7 jours : <b>${escapeHtml(o.clientNom||"—")}</b> — ${BOSS.fmtF(BOSS.orderTotal(o))}`}));
+
+  const {totalCA} = computeSalesForRange(p, now-30*86400000);
+  const salesToday = computeSalesForRange(p, now - 86400000);
+  const avgDaily = totalCA/30;
+  if(avgDaily > 100 && salesToday.totalCA > avgDaily * 3){
+    alerts.push({level:"info", icon:"🚀", txt:`Journée exceptionnelle ! <b>${BOSS.fmtF(salesToday.totalCA)}</b> aujourd'hui, +${Math.round((salesToday.totalCA/avgDaily-1)*100)}% vs moyenne.`});
+  }
+  if(avgDaily > 100 && salesToday.totalCA < avgDaily * 0.3 && new Date().getHours() > 18){
+    alerts.push({level:"warn", icon:"📉", txt:`Journée calme : <b>${BOSS.fmtF(salesToday.totalCA)}</b> — bien en dessous de la moyenne (${BOSS.fmtF(avgDaily)}).`});
+  }
+
+  const fc = forecastCash(p, horizonDays);
+  if(fc.projected < 0){
+    alerts.push({level:"danger", icon:"⚠️", txt:`Trésorerie négative prévue à J+${horizonDays} : <b>${BOSS.fmtF(fc.projected)}</b>. Agis maintenant.`});
+  }
+
+  const {ca, seuilCA} = BOSS.computeFinancials(p);
+  if(ca > 0 && ca >= seuilCA){
+    alerts.push({level:"success", icon:"✅", txt:`Seuil de rentabilité atteint : CA <b>${BOSS.fmtF(ca)}</b> ≥ seuil <b>${BOSS.fmtF(seuilCA)}</b>. Chaque vente supplémentaire est du profit.`});
+  }
+  return alerts;
+}
+
+let __alertesHorizon = 30;
+function openAlertes(){ renderAlertes(); }
+function renderAlertes(){
+  const p = cur();
+  const alerts = computeAlertes(p, __alertesHorizon);
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Alertes intelligentes</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Analyse automatique de ton business — délai de tolérance pour les dettes et les prévisions de trésorerie :</div>
+    <div class="stats-tabs">
+      ${HORIZONS.map(h=>`<button class="stats-tab ${__alertesHorizon===h?'on':''}" data-h="${h}">${h}j</button>`).join("")}
+    </div>
+    ${alerts.length===0
+      ? `<div class="ad-card"><div class="ad-card-title">✅ Rien à signaler</div><div class="ps-note">Tout va bien de ce côté. Continue comme ça.</div></div>`
+      : alerts.map(a=>`<div class="alert-row alert-${a.level}"><span class="alert-ic">${a.icon}</span><span class="alert-txt">${a.txt}</span></div>`).join("")
+    }
+    <div class="pf-lbl" style="margin-top:16px">Notifications push (navigateur)</div>
+    <button class="plus-item" id="al-notif-enable">🔔 Activer les notifications</button>`;
+  $("#sheet-close").onclick = closeSheet;
+  sheet.querySelectorAll(".stats-tab").forEach(b=>b.onclick=()=>{ __alertesHorizon = parseInt(b.dataset.h,10); renderAlertes(); });
+  $("#al-notif-enable").onclick = async()=>{
+    if(!("Notification" in window)){ alert("Notifications non supportées."); return; }
+    const r = await Notification.requestPermission();
+    if(r === "granted"){
+      new Notification("BOSS", { body: "Notifications activées ✅ Tu recevras les alertes ici.", icon: "icon-192.png" });
+    } else alert("Notifications refusées.");
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   RAPPORTS FISCAUX CGA/CEA (Ivoire/Sénégal — cadre standard)
+   ============================================================ */
+function openFiscal(){
+  const p = cur();
+  const now = new Date();
+  const defaultYear = now.getFullYear();
+  const defaultMonth = now.getMonth()+1;
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Rapports fiscaux (CGA/CEA)</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Génère une déclaration mensuelle ou annuelle formatée pour dépôt au Centre de Gestion Agréé.</div>
+
+    <div class="pf-lbl">Type de rapport</div>
+    <div class="stats-tabs">
+      <button class="stats-tab on" data-r="month">Mensuel</button>
+      <button class="stats-tab" data-r="year">Annuel</button>
+    </div>
+
+    <div class="pf-row" id="fisc-monthly-inputs">
+      <div><div class="pf-lbl">Mois</div>
+        <select class="field" id="fisc-month">${Array.from({length:12},(_,i)=>{const m=i+1;const name=new Date(2000,i,1).toLocaleDateString("fr-FR",{month:"long"});return `<option value="${m}" ${m===defaultMonth?"selected":""}>${name}</option>`;}).join("")}</select></div>
+      <div><div class="pf-lbl">Année</div>
+        <select class="field" id="fisc-year">${Array.from({length:5},(_,i)=>{const y=defaultYear-i;return `<option value="${y}" ${y===defaultYear?"selected":""}>${y}</option>`;}).join("")}</select></div>
+    </div>
+    <div class="aff-actions">
+      <button class="sheet-add" id="fisc-preview">👁️ Aperçu</button>
+      <button class="plus-item" id="fisc-print">🖨️ Imprimer / PDF</button>
+    </div>
+    <div id="fisc-view" style="margin-top:14px"></div>`;
+  $("#sheet-close").onclick = closeSheet;
+  let mode = "month";
+  sheet.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>{
+    mode = b.dataset.r;
+    sheet.querySelectorAll("[data-r]").forEach(x=>x.classList.toggle("on", x===b));
+    $("#fisc-monthly-inputs").style.display = mode==="year" ? "none":"flex";
+  });
+  const compute = () => {
+    const year = parseInt($("#fisc-year").value,10) || defaultYear;
+    const month = parseInt($("#fisc-month").value,10) || defaultMonth;
+    let from, to, label;
+    if(mode==="year"){
+      from = new Date(year,0,1).getTime(); to = new Date(year+1,0,1).getTime();
+      label = "Exercice "+year;
+    } else {
+      from = new Date(year,month-1,1).getTime(); to = new Date(year,month,1).getTime();
+      label = new Date(year,month-1,1).toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+    }
+    const ventes = (p.caisse||[]).filter(e=>e.type==="vente" && e.ts>=from && e.ts<to);
+    const depenses = (p.caisse||[]).filter(e=>e.type==="depense" && e.ts>=from && e.ts<to);
+    const pieces = (p.pieces||[]).filter(e => {
+      const d = e.date ? Date.parse(e.date+"T00:00:00") : 0;
+      return d>=from && d<to;
+    });
+    const ventesTTC = ventes.reduce((s,e)=>s+(e.montant||0),0);
+    const depensesTotal = depenses.reduce((s,e)=>s+(e.montant||0),0);
+    // TVA
+    const tvaCfg = p.tva || {enabled:false, rate:18, pricesIncludeTax:true};
+    let tvaCollectee=0, ventesHT=ventesTTC;
+    if(tvaCfg.enabled){
+      const dec = BOSS.tvaDecompose(ventesTTC, tvaCfg.rate, tvaCfg.pricesIncludeTax!==false);
+      tvaCollectee = dec.tva; ventesHT = dec.ht;
+    }
+    // Achats déductibles (pièces d'achat + quittances)
+    const achatsPieces = pieces.filter(pc=>["achat","recu","frais","quittance"].includes(pc.type));
+    const achatsTTC = achatsPieces.reduce((s,e)=>s+(e.montant||0),0);
+    const chargesMensuelles = mode==="year" ? (p.charges||[]).reduce((s,c)=>s+(c.montant||0),0)*12 : (p.charges||[]).reduce((s,c)=>s+(c.montant||0),0);
+    const resultat = ventesHT - achatsTTC - chargesMensuelles;
+    return { label, from, to, ventes, depenses, pieces, ventesTTC, ventesHT, tvaCollectee, achatsPieces, achatsTTC, chargesMensuelles, resultat, tvaCfg };
+  };
+  const renderReport = () => {
+    const r = compute();
+    const nomBiz = p.name || "—";
+    const rccm = p.identite?.rccm || "—";
+    const ncc = p.identite?.ncc || "—";
+    const adresse = p.identite?.adresse || "—";
+    const tel = p.identite?.tel || "—";
+    return `<div class="fisc-report" id="fisc-report">
+      <div class="fisc-header">
+        <div class="fisc-h1">DÉCLARATION FISCALE — ${escapeHtml(r.label.toUpperCase())}</div>
+        <div class="fisc-h2">Régime CGA / CEA</div>
+      </div>
+      <div class="fisc-block">
+        <div class="fisc-line"><b>Entreprise :</b> ${escapeHtml(nomBiz)}</div>
+        <div class="fisc-line"><b>RCCM :</b> ${escapeHtml(rccm)} · <b>NCC :</b> ${escapeHtml(ncc)}</div>
+        <div class="fisc-line"><b>Adresse :</b> ${escapeHtml(adresse)}</div>
+        <div class="fisc-line"><b>Téléphone :</b> ${escapeHtml(tel)}</div>
+        <div class="fisc-line"><b>Période :</b> ${new Date(r.from).toLocaleDateString("fr-FR")} → ${new Date(r.to-1).toLocaleDateString("fr-FR")}</div>
+      </div>
+      <div class="fisc-block">
+        <div class="fisc-section">A. CHIFFRE D'AFFAIRES</div>
+        <table class="fisc-tbl"><tr><td>Ventes TTC de la période</td><td class="num">${BOSS.fmtF(r.ventesTTC)}</td></tr>
+        ${r.tvaCfg.enabled?`<tr><td>Ventes HT (dont TVA ${r.tvaCfg.rate}%)</td><td class="num">${BOSS.fmtF(r.ventesHT)}</td></tr>
+        <tr><td>TVA collectée</td><td class="num">${BOSS.fmtF(r.tvaCollectee)}</td></tr>`:""}
+        <tr><td>Nombre de ventes</td><td class="num">${r.ventes.length}</td></tr>
+        </table>
+      </div>
+      <div class="fisc-block">
+        <div class="fisc-section">B. CHARGES ET DÉPENSES DÉDUCTIBLES</div>
+        <table class="fisc-tbl"><tr><td>Charges fixes déclarées</td><td class="num">${BOSS.fmtF(r.chargesMensuelles)}</td></tr>
+        <tr><td>Achats et frais (pièces justificatives)</td><td class="num">${BOSS.fmtF(r.achatsTTC)}</td></tr>
+        <tr><td>Nombre de pièces</td><td class="num">${r.achatsPieces.length}</td></tr>
+        <tr><td>Dépenses caisse enregistrées</td><td class="num">${BOSS.fmtF(r.depenses.reduce((s,e)=>s+(e.montant||0),0))}</td></tr>
+        </table>
+      </div>
+      <div class="fisc-block">
+        <div class="fisc-section">C. RÉSULTAT FISCAL</div>
+        <table class="fisc-tbl fisc-result">
+        <tr><td>Bénéfice fiscal (A - B)</td><td class="num"><b>${BOSS.fmtF(r.resultat)}</b></td></tr>
+        <tr><td>Marge nette (%)</td><td class="num">${r.ventesHT>0?((r.resultat/r.ventesHT)*100).toFixed(1)+" %":"—"}</td></tr>
+        </table>
+      </div>
+      <div class="fisc-footer">
+        <div>Rapport généré par BOSS le ${new Date().toLocaleDateString("fr-FR")}</div>
+        <div class="fisc-sign">Signature du contribuable : ____________________</div>
+      </div>
+    </div>`;
+  };
+  $("#fisc-preview").onclick = ()=>{ $("#fisc-view").innerHTML = renderReport(); };
+  $("#fisc-print").onclick = ()=>{
+    const html = renderReport();
+    const w = window.open("","_blank");
+    if(!w){ alert("Autorise les popups pour imprimer."); return; }
+    w.document.write(`<!doctype html><html><head><title>Déclaration fiscale</title>
+      <style>@page{size:A4 portrait;margin:15mm}body{margin:0;padding:0;font-family:'Times New Roman',serif;color:#111;font-size:11pt}
+      .fisc-header{border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px;text-align:center}
+      .fisc-h1{font-size:16pt;font-weight:700}.fisc-h2{font-size:11pt;color:#555}
+      .fisc-block{margin:10px 0 12px 0}
+      .fisc-line{margin:2px 0}
+      .fisc-section{font-weight:700;font-size:12pt;background:#eee;padding:4px 8px;margin:8px 0 4px 0;border-left:3px solid #000}
+      .fisc-tbl{width:100%;border-collapse:collapse}
+      .fisc-tbl td{padding:4px 8px;border-bottom:1px dotted #999}
+      .fisc-tbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+      .fisc-result td{font-size:12pt;border-bottom:2px solid #000}
+      .fisc-footer{margin-top:20mm;font-size:10pt;color:#666}
+      .fisc-sign{margin-top:15mm;text-align:right}
+      </style></head><body onload="window.print();setTimeout(()=>window.close(),300)">${html}</body></html>`);
+    w.document.close();
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 
 function openPersonnalisation(){
