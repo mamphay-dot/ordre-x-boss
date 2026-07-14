@@ -334,6 +334,55 @@
   .btn-mini.danger{color:#f96;border-color:#a34}
   .aff-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .cat-p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0}
+  /* ===== MODE FACILE ===== */
+  body.easy .topbar,body.easy .tabs,body.easy .tabbar,body.easy #save-warn,body.easy .install-banner,body.easy .sidebar,body.easy nav.nav,body.easy .install-hint{display:none!important}
+  body.easy .app{padding-bottom:24px}
+  body.easy #view-easy.on{display:block}
+  .easy-wrap{max-width:520px;margin:0 auto;padding:18px 16px 100px;text-align:center}
+  .easy-brand{font-family:'Archivo';font-weight:900;font-size:26px;color:var(--gold);letter-spacing:-.02em;margin-top:6px}
+  .easy-brand span{color:var(--cream)}
+  .easy-biz{color:var(--cream-dim);font-size:14.5px;margin-top:2px}
+  .easy-money{background:linear-gradient(180deg,#1a1a1c 0%,#141416 100%);border:1.5px solid #2a2a30;border-radius:22px;padding:20px 18px;margin:18px 0 22px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+  .easy-money-lbl{color:var(--cream-dim);font-size:14px;font-weight:600}
+  .easy-money-big{font-family:'Archivo';font-weight:900;font-size:44px;color:var(--gold);line-height:1.05;margin:8px 0 4px;letter-spacing:-.02em}
+  .easy-money-sub{color:var(--cream);font-size:14px}
+  .easy-speak{margin-top:12px;display:inline-flex;align-items:center;gap:8px;background:var(--char2);border:1px solid var(--line);border-radius:999px;padding:9px 16px;color:var(--cream);font-weight:600;font-size:14px;cursor:pointer;font-family:inherit}
+  .easy-speak:hover{border-color:var(--gold);color:var(--gold)}
+  .easy-speak.on{background:var(--gold);color:var(--on-accent);border-color:var(--gold)}
+  .easy-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 22px}
+  .easy-btn{background:var(--char);border:2px solid var(--line);border-radius:22px;padding:24px 14px 20px;cursor:pointer;font-family:inherit;transition:transform .12s,border-color .12s;display:flex;flex-direction:column;align-items:center;gap:10px;min-height:150px;justify-content:center}
+  .easy-btn:active{transform:scale(.96)}
+  .easy-btn-emoji{font-size:44px;line-height:1}
+  .easy-btn-txt{font-family:'Archivo';font-weight:800;font-size:17px;color:var(--cream);line-height:1.15;text-align:center}
+  .easy-btn.gain{border-color:#3a7d4f;background:linear-gradient(180deg,#152820 0%,#0f1a15 100%)}
+  .easy-btn.gain .easy-btn-txt{color:#7dd095}
+  .easy-btn.perte{border-color:#8a3a3a;background:linear-gradient(180deg,#281515 0%,#1a0f0f 100%)}
+  .easy-btn.perte .easy-btn-txt{color:#f19595}
+  .easy-btn.dette{border-color:#8a6a2a;background:linear-gradient(180deg,#28211a 0%,#1a170f 100%)}
+  .easy-btn.dette .easy-btn-txt{color:#f3c162}
+  .easy-btn.parler{border-color:var(--gold);background:linear-gradient(180deg,#241f10 0%,#1a1608 100%)}
+  .easy-btn.parler .easy-btn-txt{color:var(--gold)}
+  .easy-day{background:var(--char);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:18px;text-align:left}
+  .easy-day h4{margin:0 0 10px;font-family:'Archivo';font-weight:800;font-size:13px;color:var(--gold);text-transform:uppercase;letter-spacing:.05em}
+  .easy-day-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line2);font-size:14.5px}
+  .easy-day-row:last-child{border-bottom:none}
+  .easy-day-row .k{color:var(--cream-dim)}
+  .easy-day-row .v{font-weight:700}
+  .easy-day-row.g .v{color:#7dd095}
+  .easy-day-row.p .v{color:#f19595}
+  .easy-more{background:var(--char2);border:1px dashed var(--line);border-radius:14px;padding:16px;color:var(--cream-dim);font-size:13.5px;cursor:pointer;font-family:inherit;width:100%;font-weight:600}
+  .easy-more:hover{color:var(--cream);border-color:var(--gold)}
+  /* Sheet géante en mode facile */
+  body.easy .sheet{padding:20px 18px}
+  body.easy .sheet .sheet-head h3{font-size:22px}
+  body.easy .sheet .field{font-size:20px;padding:16px;min-height:56px}
+  body.easy .sheet .sheet-add,body.easy .sheet .plus-item{font-size:17px;padding:16px;min-height:56px}
+  body.easy .sheet .chip{font-size:16px;padding:12px 16px;min-height:48px}
+  body.easy .sheet .mode-b{font-size:16px;padding:14px;min-height:52px}
+  /* Bouton micro dans sheet Facile */
+  .easy-mic{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--gold);color:var(--on-accent);border:none;border-radius:999px;padding:12px 20px;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;margin:4px 0 10px}
+  .easy-mic.rec{background:#e05555;color:#fff;animation:easyPulse 1s infinite}
+  @keyframes easyPulse{0%,100%{box-shadow:0 0 0 0 rgba(224,85,85,.7)}50%{box-shadow:0 0 0 12px rgba(224,85,85,0)}}
   .cat-p-card{background:var(--char);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column}
   .cat-p-img{width:100%;aspect-ratio:1/1;background:var(--char2) center/cover no-repeat}
   .cat-p-noimg{display:flex;align-items:center;justify-content:center;color:var(--gold);font-family:'Archivo';font-weight:800;font-size:38px}
@@ -729,6 +778,11 @@
       <div class="pi"><div class="pn" id="cur-name">…</div><div class="pm" id="cur-metier"></div></div>
       <span class="car">▾</span>
     </button>
+  </div>
+
+  <!-- VUE 0 : MODE FACILE (grand écran d'accueil pour patrons peu lettrés) -->
+  <div class="view" id="view-easy">
+    <div class="easy-wrap" id="easy-wrap"></div>
   </div>
 
   <!-- VUE 1 : ONBOARDING -->

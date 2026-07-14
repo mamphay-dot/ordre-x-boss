@@ -208,6 +208,8 @@ async function restore(){
   if(!state.license){ state.license=BOSS.defaultLicense(); created=true; }
   if(!state.admin){ state.admin={role:"proprietaire"}; created=true; }
   if(!state.ai){ state.ai={url:"",key:"",model:"openai",enabled:true,provider:"pollinations"}; created=true; }
+  if(typeof state.easyMode !== "boolean"){ state.easyMode=false; created=true; }
+  if(!state.easyVoice){ state.easyVoice={enabled:true, lang:"fr-FR"}; created=true; }
   else if(!state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
   if(!state.currentId || !state.profiles[state.currentId]){
     const p=BOSS.blankProfile("Mon business");
@@ -915,6 +917,7 @@ function openPlus(){
   const installable = !!deferredInstall && !isStandalone();
   sheet.innerHTML=`
     <div class="sheet-head"><h3>Plus</h3><button class="x" id="sheet-close">×</button></div>
+    <button class="plus-item gold" id="pl-easy" style="background:${state.easyMode?"var(--char2)":"linear-gradient(135deg,#241f10 0%,#1a1608 100%)"};border:2px solid var(--gold);color:var(--gold);font-size:15px">🔊 ${state.easyMode?"Revenir au mode complet 📊":"Passer en mode Facile (gros boutons + voix)"}</button>
     ${installable?`<button class="plus-item gold" id="pl-install">${ic("install")} Installer l'application sur l'écran d'accueil</button>`:""}
     <button class="plus-item" id="pl-pos">${ic("pos")} Saisie caisse (POS)</button>
     <button class="plus-item" id="pl-team">${ic("team")} Mon équipe (collaborateurs)</button>
@@ -959,6 +962,7 @@ function openPlus(){
   const ins=$("#pl-install"); if(ins) ins.onclick=async()=>{ closeSheet(); await doInstall(); };
   const plpos=$("#pl-pos"); if(plpos) plpos.onclick=()=>{ closeSheet(); showView("pos"); };
   const plteam=$("#pl-team"); if(plteam) plteam.onclick=openTeam;
+  const ple=$("#pl-easy"); if(ple) ple.onclick=()=>{ closeSheet(); setEasyMode(!state.easyMode); };
   const plreg=$("#pl-registers"); if(plreg) plreg.onclick=openRegisters;
   const plval=$("#pl-valid"); if(plval) plval.onclick=openValidations;
   const plabo=$("#pl-abo"); if(plabo) plabo.onclick=openAbonnement;
@@ -4865,6 +4869,306 @@ function wire(){
   const cb=$("#cloud-badge"); if(cb) cb.onclick=openCloudSheet;
 }
 
+/* ============================================================
+   MODE FACILE — grand écran d'accueil pour patrons peu lettrés
+   ============================================================ */
+const EasyMode = {
+  canSpeak(){ return typeof window!=="undefined" && "speechSynthesis" in window; },
+  canListen(){ return typeof window!=="undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window); },
+  _u:null,
+  speak(text){
+    try{
+      if(!this.canSpeak() || !state.easyVoice || !state.easyVoice.enabled) return;
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(String(text||""));
+      u.lang=(state.easyVoice.lang)||"fr-FR"; u.rate=0.95; u.pitch=1;
+      const voices=window.speechSynthesis.getVoices();
+      const v=voices.find(x=>x.lang && x.lang.toLowerCase().startsWith("fr"));
+      if(v) u.voice=v;
+      this._u=u;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  },
+  stop(){ try{ window.speechSynthesis.cancel(); }catch(e){} },
+  listen(onText,onEnd){
+    if(!this.canListen()){ onEnd&&onEnd(new Error("Micro non supporté par ton navigateur")); return null; }
+    const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const r=new R();
+    r.lang=(state.easyVoice&&state.easyVoice.lang)||"fr-FR";
+    r.interimResults=false; r.maxAlternatives=1; r.continuous=false;
+    r.onresult=(e)=>{ const t=e.results&&e.results[0]&&e.results[0][0]&&e.results[0][0].transcript; onText&&onText(String(t||"")); };
+    r.onerror=(e)=>{ onEnd&&onEnd(e); };
+    r.onend=()=>{ onEnd&&onEnd(null); };
+    try{ r.start(); }catch(e){ onEnd&&onEnd(e); }
+    return r;
+  }
+};
+
+/* Format simplifié des montants : 2 137 → "2 mille", 1 250 000 → "1 million 250 mille" */
+function simpleAmount(n){
+  n=Math.round(Number(n)||0);
+  if(n===0) return "0 francs";
+  const neg=n<0; if(neg) n=-n;
+  const M=Math.floor(n/1000000), r=n%1000000;
+  const K=Math.floor(r/1000), U=r%1000;
+  const parts=[];
+  if(M>0) parts.push(M+(M>1?" millions":" million"));
+  if(K>0) parts.push(K+" mille");
+  if(U>0 && M===0 && K===0) parts.push(U); // sous 1000, dire exactement
+  if(!parts.length) parts.push("moins de mille");
+  return (neg?"moins ":"")+parts.join(" ")+" francs";
+}
+
+function easyDayStats(){
+  const p=cur();
+  const now=Date.now(), Djour=24*3600*1000;
+  const todayStart=new Date(); todayStart.setHours(0,0,0,0);
+  const t0=todayStart.getTime();
+  let ventes=0, depenses=0, nbV=0, nbD=0;
+  (p.caisse||[]).forEach(e=>{
+    if(!e || !e.ts || e.ts<t0) return;
+    if(e.type==="vente"){ ventes+=Number(e.montant)||0; nbV++; }
+    else if(e.type==="depense"){ depenses+=Number(e.montant)||0; nbD++; }
+  });
+  const caisseNette=ventes-depenses;
+  return { ventes, depenses, caisseNette, nbV, nbD };
+}
+
+function renderEasyHome(){
+  const p=cur();
+  const wrap=$("#easy-wrap"); if(!wrap) return;
+  const stats=easyDayStats();
+  wrap.innerHTML=`
+    <div class="easy-brand">BOSS<span>.</span></div>
+    <div class="easy-biz">${escapeHtml(p.name)}</div>
+
+    <div class="easy-money">
+      <div class="easy-money-lbl">Aujourd'hui, tu as gagné</div>
+      <div class="easy-money-big" id="easy-net">${stats.caisseNette>=0?"":"— "}${new Intl.NumberFormat("fr-FR").format(Math.abs(stats.caisseNette))} F</div>
+      <div class="easy-money-sub">${stats.caisseNette>=0?"C'est bien !":"Fais attention, tu as plus dépensé que gagné."}</div>
+      <button class="easy-speak" id="easy-listen">🔊 Écouter</button>
+    </div>
+
+    <div class="easy-grid">
+      <button class="easy-btn gain" id="easy-vente">
+        <div class="easy-btn-emoji">💰</div>
+        <div class="easy-btn-txt">J'ai vendu</div>
+      </button>
+      <button class="easy-btn perte" id="easy-depense">
+        <div class="easy-btn-emoji">💸</div>
+        <div class="easy-btn-txt">J'ai payé</div>
+      </button>
+      <button class="easy-btn dette" id="easy-dette">
+        <div class="easy-btn-emoji">👥</div>
+        <div class="easy-btn-txt">On me doit</div>
+      </button>
+      <button class="easy-btn parler" id="easy-ai">
+        <div class="easy-btn-emoji">🎙️</div>
+        <div class="easy-btn-txt">Parler à BOSS</div>
+      </button>
+    </div>
+
+    <div class="easy-day">
+      <h4>Ce que tu as fait aujourd'hui</h4>
+      <div class="easy-day-row g"><span class="k">Ventes (${stats.nbV})</span><span class="v">${new Intl.NumberFormat("fr-FR").format(stats.ventes)} F</span></div>
+      <div class="easy-day-row p"><span class="k">Dépenses (${stats.nbD})</span><span class="v">${new Intl.NumberFormat("fr-FR").format(stats.depenses)} F</span></div>
+    </div>
+
+    <button class="easy-more" id="easy-more">📊 Voir mes vrais chiffres (mode complet)</button>
+  `;
+  $("#easy-vente").onclick=()=>{ EasyMode.stop(); openEasyVente(); };
+  $("#easy-depense").onclick=()=>{ EasyMode.stop(); openEasyDepense(); };
+  $("#easy-dette").onclick=()=>{ EasyMode.stop(); openEasyDette(); };
+  $("#easy-ai").onclick=()=>{ EasyMode.stop(); openEasyAI(); };
+  $("#easy-more").onclick=()=>{ setEasyMode(false); showView("dash"); };
+  const ls=$("#easy-listen");
+  ls.onclick=()=>{
+    if(ls.classList.contains("on")){ EasyMode.stop(); ls.classList.remove("on"); ls.textContent="🔊 Écouter"; return; }
+    ls.classList.add("on"); ls.textContent="⏸ Arrêter";
+    const msg = stats.caisseNette>=0
+      ? `Bonjour patron. Aujourd'hui tu as gagné environ ${simpleAmount(stats.caisseNette)}. Tu as fait ${stats.nbV} vente${stats.nbV>1?"s":""}, pour un total de ${simpleAmount(stats.ventes)}. Tes dépenses sont de ${simpleAmount(stats.depenses)}. C'est bien, continue.`
+      : `Attention patron. Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Tes dépenses sont plus grandes que tes ventes. Regarde bien ce que tu as payé.`;
+    EasyMode.speak(msg);
+    setTimeout(()=>{ ls.classList.remove("on"); ls.textContent="🔊 Écouter"; }, Math.max(4000, msg.length*70));
+  };
+}
+
+function setEasyMode(on){
+  state.easyMode=!!on;
+  document.body.classList.toggle("easy", state.easyMode);
+  persist();
+  if(state.easyMode){
+    renderEasyHome();
+    showView("easy");
+  }
+}
+
+/* --- Sheet Facile : vente en 2 taps --- */
+function openEasyVente(){
+  const p=cur();
+  const sheet=$("#sheet");
+  const prods=(p.revenus||[]).filter(r=>r.prix>0).slice(0,8);
+  sheet.innerHTML=`
+    <div class="sheet-head"><h3>💰 J'ai vendu</h3><button class="x" id="sheet-close">×</button></div>
+    ${prods.length?`<div class="pf-lbl" style="font-size:16px">Choisis le produit</div>
+      <div class="chips" id="ev-prods">${prods.map((r,i)=>`<button class="chip" data-i="${i}">${escapeHtml(r.nom)} · ${new Intl.NumberFormat("fr-FR").format(r.prix)} F</button>`).join("")}</div>`:""}
+    <div class="pf-lbl" style="font-size:16px">Combien tu as reçu ?</div>
+    <input class="field" id="ev-amount" type="number" inputmode="numeric" placeholder="0" style="font-size:26px;text-align:center;font-weight:800">
+    ${EasyMode.canListen()?`<button class="easy-mic" id="ev-mic">🎙️ Dire le montant</button>`:""}
+    <button class="sheet-add" id="ev-save" style="background:#3a7d4f;font-size:18px">✓ Enregistrer la vente</button>
+  `;
+  $("#sheet-close").onclick=closeSheet;
+  let selIdx=null;
+  sheet.querySelectorAll("#ev-prods .chip").forEach(c=>{
+    c.onclick=()=>{
+      const i=+c.dataset.i; selIdx=i;
+      sheet.querySelectorAll("#ev-prods .chip").forEach(x=>x.classList.remove("on"));
+      c.classList.add("on");
+      $("#ev-amount").value=prods[i].prix||"";
+      EasyMode.speak(prods[i].nom+", "+simpleAmount(prods[i].prix));
+    };
+  });
+  const mic=$("#ev-mic");
+  if(mic) mic.onclick=()=>{
+    mic.classList.add("rec"); mic.textContent="🔴 Parle maintenant…";
+    EasyMode.listen(txt=>{
+      const digits=(txt.match(/\d[\d\s]*/g)||[]).join("").replace(/\s/g,"");
+      const nb = digits ? parseInt(digits,10) : parseFrenchNumber(txt);
+      if(nb>0){ $("#ev-amount").value=nb; EasyMode.speak(simpleAmount(nb)); }
+    }, ()=>{ mic.classList.remove("rec"); mic.textContent="🎙️ Dire le montant"; });
+  };
+  $("#ev-save").onclick=async()=>{
+    const montant=parseFloat($("#ev-amount").value)||0;
+    if(montant<=0){ EasyMode.speak("Dis-moi combien tu as reçu"); $("#ev-amount").focus(); return; }
+    const entry={id:"m"+Date.now().toString(36),ts:Date.now(),type:"vente",montant,canal:"especes",label:selIdx!=null?prods[selIdx].nom:"Vente",productId:selIdx!=null?(prods[selIdx].id||selIdx):undefined,qty:1};
+    p.caisse.push(entry);
+    if(selIdx!=null && typeof prods[selIdx].stock==="number") prods[selIdx].stock=Math.max(0,prods[selIdx].stock-1);
+    await persist();
+    EasyMode.speak("C'est bon patron. "+simpleAmount(montant)+" enregistrés.");
+    closeSheet(); renderEasyHome();
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function openEasyDepense(){
+  const p=cur();
+  const sheet=$("#sheet");
+  sheet.innerHTML=`
+    <div class="sheet-head"><h3>💸 J'ai payé</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="pf-lbl" style="font-size:16px">Combien tu as payé ?</div>
+    <input class="field" id="ed-amount" type="number" inputmode="numeric" placeholder="0" style="font-size:26px;text-align:center;font-weight:800">
+    <div class="pf-lbl" style="font-size:16px">Pour quoi ? (facultatif)</div>
+    <input class="field" id="ed-label" placeholder="Ex. charbon, transport, marchandise…">
+    ${EasyMode.canListen()?`<button class="easy-mic" id="ed-mic">🎙️ Dire ce que j'ai payé</button>`:""}
+    <button class="sheet-add" id="ed-save" style="background:#8a3a3a;font-size:18px">✓ Enregistrer la dépense</button>
+  `;
+  $("#sheet-close").onclick=closeSheet;
+  const mic=$("#ed-mic");
+  if(mic) mic.onclick=()=>{
+    mic.classList.add("rec"); mic.textContent="🔴 Parle maintenant…";
+    EasyMode.listen(txt=>{
+      const digits=(txt.match(/\d[\d\s]*/g)||[]).join("").replace(/\s/g,"");
+      const nb = digits ? parseInt(digits,10) : parseFrenchNumber(txt);
+      if(nb>0) $("#ed-amount").value=nb;
+      const label=txt.replace(/\d[\d\s]*/g,"").replace(/\s+/g," ").trim();
+      if(label && label.length<80) $("#ed-label").value=label;
+    }, ()=>{ mic.classList.remove("rec"); mic.textContent="🎙️ Dire ce que j'ai payé"; });
+  };
+  $("#ed-save").onclick=async()=>{
+    const montant=parseFloat($("#ed-amount").value)||0;
+    if(montant<=0){ EasyMode.speak("Dis-moi combien tu as payé"); $("#ed-amount").focus(); return; }
+    p.caisse.push({id:"m"+Date.now().toString(36),ts:Date.now(),type:"depense",montant,canal:"especes",label:($("#ed-label").value||"Dépense").trim(),qty:1});
+    await persist();
+    EasyMode.speak("D'accord patron. "+simpleAmount(montant)+" payés, c'est enregistré.");
+    closeSheet(); renderEasyHome();
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function openEasyDette(){
+  const p=cur();
+  const sheet=$("#sheet");
+  sheet.innerHTML=`
+    <div class="sheet-head"><h3>👥 On me doit</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="pf-lbl" style="font-size:16px">Qui te doit ?</div>
+    <input class="field" id="et-client" placeholder="Nom de la personne">
+    <div class="pf-lbl" style="font-size:16px">Combien ?</div>
+    <input class="field" id="et-montant" type="number" inputmode="numeric" placeholder="0" style="font-size:26px;text-align:center;font-weight:800">
+    <div class="pf-lbl" style="font-size:16px">Son numéro WhatsApp (facultatif)</div>
+    <input class="field" id="et-phone" inputmode="tel" placeholder="Ex. 0700000000">
+    <button class="sheet-add" id="et-save" style="background:#8a6a2a;font-size:18px">✓ Ajouter à mon carnet</button>
+  `;
+  $("#sheet-close").onclick=closeSheet;
+  $("#et-save").onclick=async()=>{
+    const montant=parseFloat($("#et-montant").value)||0;
+    const client=($("#et-client").value||"").trim();
+    if(!client){ EasyMode.speak("Dis-moi le nom de la personne"); $("#et-client").focus(); return; }
+    if(montant<=0){ EasyMode.speak("Dis-moi combien elle te doit"); $("#et-montant").focus(); return; }
+    p.carnet=p.carnet||[];
+    p.carnet.push({client, montant, motif:"", phone:($("#et-phone").value||"").trim(), paye:false, ts:Date.now()});
+    await persist();
+    EasyMode.speak(client+" te doit "+simpleAmount(montant)+". C'est noté.");
+    closeSheet(); renderEasyHome();
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function openEasyAI(){
+  const sheet=$("#sheet");
+  sheet.innerHTML=`
+    <div class="sheet-head"><h3>🎙️ Parle à BOSS</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:12px 0 6px;color:var(--cream-dim);font-size:14.5px">Appuie sur le micro et parle. Dis ce que tu veux :<br><i>"Combien j'ai gagné ?"</i>, <i>"Comment augmenter mes ventes ?"</i></div>
+    <button class="easy-mic" id="eai-mic" style="width:100%;padding:22px;font-size:18px;justify-content:center">🎙️ Parler maintenant</button>
+    <div id="eai-heard" style="background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;color:var(--cream);font-size:15px;min-height:40px;font-style:italic"></div>
+    <div id="eai-answer" style="background:var(--char);border:1px solid var(--gold);border-radius:12px;padding:14px;color:var(--cream);font-size:15.5px;line-height:1.5;min-height:40px"></div>
+    <div style="text-align:center;margin-top:14px;color:var(--cream-dim);font-size:12.5px">${EasyMode.canListen()?"":"⚠️ Ton navigateur ne reconnaît pas la voix — écris ta question :"}</div>
+    ${EasyMode.canListen()?"":`<input class="field" id="eai-txt" placeholder="Ta question ici…" style="margin-top:8px"><button class="sheet-add" id="eai-send" style="margin-top:8px">Envoyer</button>`}
+  `;
+  $("#sheet-close").onclick=()=>{ EasyMode.stop(); closeSheet(); };
+  async function ask(question){
+    if(!question) return;
+    $("#eai-heard").textContent="« "+question+" »";
+    $("#eai-answer").textContent="BOSS réfléchit…";
+    const p=cur();
+    const stats=easyDayStats();
+    const contexte=`Business : ${p.name}. Métier : ${(BOSS.METIERS[p.metier]||{}).name||"—"}. Aujourd'hui : ${stats.nbV} ventes pour ${stats.ventes} F, ${stats.nbD} dépenses pour ${stats.depenses} F. Solde du jour : ${stats.caisseNette} F.`;
+    const prompt=`Tu es BOSS, assistant vocal pour un patron de rapide entreprise en Afrique de l'Ouest. Réponds en français très simple, phrases courtes (moins de 15 mots), sans jargon. Contexte : ${contexte}. Question : ${question}. Réponds en 2-3 phrases maximum.`;
+    try{
+      const r=await fetch("https://text.pollinations.ai/"+encodeURIComponent(prompt)+"?model=openai");
+      const txt=await r.text();
+      const clean=String(txt||"").slice(0,500).trim() || "Excuse-moi patron, je n'ai pas compris. Réessaie.";
+      $("#eai-answer").textContent=clean;
+      EasyMode.speak(clean);
+    }catch(e){
+      const fb=stats.caisseNette>=0?`Aujourd'hui tu as gagné ${simpleAmount(stats.caisseNette)}. Bien continué !`:`Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Regarde tes dépenses.`;
+      $("#eai-answer").textContent=fb; EasyMode.speak(fb);
+    }
+  }
+  const mic=$("#eai-mic");
+  if(mic) mic.onclick=()=>{
+    mic.classList.add("rec"); mic.textContent="🔴 J'écoute…";
+    EasyMode.listen(txt=>ask(txt), ()=>{ mic.classList.remove("rec"); mic.textContent="🎙️ Parler maintenant"; });
+  };
+  const send=$("#eai-send"); if(send) send.onclick=()=>ask(($("#eai-txt").value||"").trim());
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* Reconnaît quelques nombres écrits en français : mille, deux mille cinq cent, etc. */
+function parseFrenchNumber(txt){
+  const t=String(txt||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+  const mots={zero:0,un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,onze:11,douze:12,treize:13,quatorze:14,quinze:15,seize:16,vingt:20,trente:30,quarante:40,cinquante:50,soixante:60,cent:100,cents:100,mille:1000,million:1000000,millions:1000000};
+  const tokens=t.split(/[\s\-]+/).filter(Boolean);
+  let total=0, current=0;
+  for(const w of tokens){
+    if(!(w in mots)) continue;
+    const n=mots[w];
+    if(n===1000||n===1000000){ current=(current||1)*n; total+=current; current=0; }
+    else if(n===100){ current=(current||1)*n; }
+    else current+=n;
+  }
+  return total+current;
+}
+
 /* ---------- boot ---------- */
 window.addEventListener("DOMContentLoaded",async()=>{
   wire();
@@ -4877,7 +5181,10 @@ window.addEventListener("DOMContentLoaded",async()=>{
   IdleLock.start();
   applyMenuCustomization();
   const p=cur();
-  if(!p.revenus.length && !p.charges.length && !(p.caisse||[]).length){ startOnboard(); showView("onboard"); }
+  if(state.easyMode){
+    document.body.classList.add("easy");
+    refreshAll(); renderEasyHome(); showView("easy");
+  } else if(!p.revenus.length && !p.charges.length && !(p.caisse||[]).length){ startOnboard(); showView("onboard"); }
   else { refreshAll(); showView((p.ui&&p.ui.home)||"dash"); }
   const sn=$("#storage-note"); if(sn) sn.textContent=Store.label();
   // PWA file handler : réception d'un fichier .boss-catalog.json depuis le système
