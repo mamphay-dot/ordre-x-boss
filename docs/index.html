@@ -340,6 +340,8 @@
   .idle-lock-title{font-family:'Archivo';font-weight:800;font-size:20px;color:var(--cream)}
   .idle-lock-sub{color:var(--cream-dim);font-size:13.5px;margin:6px 0 14px 0;line-height:1.5}
   .idle-lock-err{color:#f96;font-size:13px;margin-top:8px;min-height:18px}
+  .idle-lock-or{text-align:center;color:var(--cream-dim);font-size:12px;margin:6px 0}
+  .bio-status{background:var(--char2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0}
   .lock-screen{position:fixed;inset:0;z-index:200;background:rgba(8,8,10,.97);display:flex;align-items:center;justify-content:center;padding:24px}
   .lock-card{max-width:380px;width:100%;background:var(--char);border:1px solid var(--line);border-radius:18px;padding:26px 22px;text-align:center}
   .lock-ic{font-size:46px;margin-bottom:8px}
@@ -3202,6 +3204,7 @@ function openPlus(){
     <button class="plus-item" id="pl-alertes">${ic("warn")} Alertes intelligentes</button>
     <button class="plus-item" id="pl-fiscal">${ic("doc")} Rapports fiscaux (CGA/CEA)</button>
     <button class="plus-item" id="pl-lock">${ic("lock")} Verrouiller BOSS maintenant</button>
+    <button class="plus-item" id="pl-bio">${ic("check")} Déverrouillage biométrique (Face ID / empreinte)</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
     <button class="plus-item" id="pl-help">${ic("help")} Aide & tutoriel</button>
@@ -3241,6 +3244,7 @@ function openPlus(){
   const plal=$("#pl-alertes"); if(plal) plal.onclick=()=>{ closeSheet(); openAlertes(); };
   const plfs=$("#pl-fiscal"); if(plfs) plfs.onclick=()=>{ closeSheet(); openFiscal(); };
   const pll=$("#pl-lock"); if(pll) pll.onclick=()=>{ closeSheet(); IdleLock.forceLockNow(); };
+  const plb=$("#pl-bio"); if(plb) plb.onclick=()=>{ closeSheet(); openBioSetup(); };
   $("#pl-onboard").onclick=()=>{ closeSheet(); showView("onboard"); startOnboard(); };
   $("#pl-ai").onclick=()=>{ openAISettings(); };
   $("#pl-config").onclick=()=>{ closeSheet(); showView("config"); };
@@ -4763,6 +4767,150 @@ function metiersCount(){ return Math.max(1,Object.keys(state.profiles).length); 
    saisir un code (PIN admin OU mot de passe cloud) pour rouvrir.
    Empêche l'accès physique opportuniste à un téléphone déverrouillé.
 */
+/* ============================================================
+   BIOMÉTRIE — Écran de configuration
+   ============================================================ */
+async function openBioSetup(){
+  const sheet = $("#sheet");
+  const supported = BioAuth.available();
+  const platformOK = supported ? await BioAuth.platformAvailable() : false;
+  const enrolled = BioAuth.enrolled();
+  const p = cur();
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Déverrouillage biométrique</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Utilise <b>Face ID, Touch ID, ton empreinte digitale ou Windows Hello</b> pour rouvrir BOSS quand elle est verrouillée par inactivité — au lieu de saisir ton code administrateur.</div>
+    <div class="ps-note">Les données biométriques ne quittent <b>jamais</b> ton téléphone. BOSS ne stocke qu'un identifiant technique (32 caractères) pour valider ta demande.</div>
+
+    <div class="bio-status">
+      <div class="ad-row"><span>Support navigateur</span><b>${supported?"✅ Oui":"❌ Non"}</b></div>
+      <div class="ad-row"><span>Capteur biométrique</span><b>${platformOK?"✅ Détecté":supported?"⚠️ Introuvable":"❌ N/A"}</b></div>
+      <div class="ad-row"><span>Statut</span><b>${enrolled?"✅ Activé sur cet appareil":"Non activé"}</b></div>
+    </div>
+
+    ${!supported?`<div class="ps-note" style="color:#f96">Ton navigateur ne supporte pas WebAuthn. Utilise Chrome, Safari récent, Edge ou Firefox 60+.</div>`:""}
+    ${supported && !platformOK?`<div class="ps-note" style="color:#f96">Aucun capteur biométrique détecté (Face ID / empreinte). Sur mobile, vérifie que le déverrouillage biométrique est activé dans les réglages système.</div>`:""}
+    ${supported && platformOK && !state.admin?.pin?`<div class="ps-note" style="color:#f96">⚠️ Tu n'as pas encore de code administrateur. Va d'abord dans <b>Espace administrateur</b> pour en créer un — la biométrie fonctionne <b>en plus</b> du code, jamais à la place.</div>`:""}
+
+    <div class="aff-actions">
+      ${supported && platformOK && !enrolled ? `<button class="sheet-add" id="bio-enroll">👆 Activer avec ma biométrie</button>` : ""}
+      ${enrolled ? `<button class="sheet-add" id="bio-test">🧪 Tester la biométrie</button>
+        <button class="plus-item danger" id="bio-remove">✕ Désactiver la biométrie</button>` : ""}
+    </div>
+    <div id="bio-status-msg" class="ps-note"></div>`;
+  $("#sheet-close").onclick = closeSheet;
+  const setMsg = (t, ok) => {
+    const m = $("#bio-status-msg");
+    m.textContent = t;
+    m.style.color = ok===false?"#f96":ok===true?"#7c7":"";
+  };
+  const enrollBtn = $("#bio-enroll");
+  if(enrollBtn) enrollBtn.onclick = async ()=>{
+    setMsg("Placement du doigt / regard vers l'écran…");
+    try {
+      await BioAuth.enroll(p.name || "BOSS");
+      setMsg("✅ Biométrie activée. Elle sera proposée au prochain verrouillage.", true);
+      setTimeout(openBioSetup, 900);
+    } catch(e){
+      setMsg("Échec : "+(e.message||"annulé"), false);
+    }
+  };
+  const testBtn = $("#bio-test");
+  if(testBtn) testBtn.onclick = async ()=>{
+    setMsg("Vérification…");
+    try {
+      await BioAuth.verify();
+      setMsg("✅ Ta biométrie fonctionne !", true);
+    } catch(e){
+      setMsg("Échec : "+(e.message||"annulé"), false);
+    }
+  };
+  const remBtn = $("#bio-remove");
+  if(remBtn) remBtn.onclick = ()=>{
+    if(!confirm("Retirer la biométrie de cet appareil ? Tu devras utiliser ton code pour déverrouiller.")) return;
+    BioAuth.disable();
+    openBioSetup();
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   BIOMÉTRIE (WebAuthn) — Face ID, Touch ID, empreinte Android
+   Déverrouillage local (offline). Aucune donnée biométrique ne
+   quitte l'appareil ; on stocke uniquement un ID de credential.
+   ============================================================ */
+const BioAuth=(function(){
+  const KEY_ID = "boss:bio:credId:v1";
+  function available(){
+    return !!(window.PublicKeyCredential && navigator.credentials
+      && typeof navigator.credentials.create === "function"
+      && typeof navigator.credentials.get === "function");
+  }
+  async function platformAvailable(){
+    if(!available()) return false;
+    try {
+      if(PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable){
+        return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      }
+    } catch(_){}
+    return false;
+  }
+  function _b64u(u8){ let s=""; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+  function _ub64(str){ str=str.replace(/-/g,"+").replace(/_/g,"/"); while(str.length%4) str+="="; const bin=atob(str); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+  function getCredId(){ try { const v = localStorage.getItem(KEY_ID); return v || null; } catch(_){ return null; } }
+  function saveCredId(id){ try { localStorage.setItem(KEY_ID, id); } catch(_){} }
+  function clearCredId(){ try { localStorage.removeItem(KEY_ID); } catch(_){} }
+  function enrolled(){ return !!getCredId(); }
+
+  async function enroll(userName){
+    if(!available()) throw new Error("Biométrie non supportée sur ce navigateur");
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    const publicKey = {
+      challenge,
+      rp: { name: "BOSS", id: location.hostname },
+      user: {
+        id: userId,
+        name: userName || "boss-user",
+        displayName: userName || "BOSS"
+      },
+      pubKeyCredParams: [
+        { type: "public-key", alg: -7  }, // ES256
+        { type: "public-key", alg: -257 } // RS256
+      ],
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        userVerification: "required",
+        requireResidentKey: false
+      },
+      timeout: 60000,
+      attestation: "none"
+    };
+    const cred = await navigator.credentials.create({ publicKey });
+    if(!cred || !cred.rawId) throw new Error("Enrôlement annulé");
+    const id = _b64u(new Uint8Array(cred.rawId));
+    saveCredId(id);
+    return id;
+  }
+
+  async function verify(){
+    const id = getCredId();
+    if(!id) throw new Error("Aucune biométrie enregistrée");
+    if(!available()) throw new Error("Biométrie non supportée sur ce navigateur");
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const publicKey = {
+      challenge,
+      rpId: location.hostname,
+      allowCredentials: [{ type: "public-key", id: _ub64(id), transports: ["internal"] }],
+      userVerification: "required",
+      timeout: 60000
+    };
+    const assertion = await navigator.credentials.get({ publicKey });
+    return !!assertion;
+  }
+
+  return { available, platformAvailable, enroll, verify, enrolled, disable: clearCredId, getCredId };
+})();
+
 const IdleLock=(function(){
   const IDLE_MS_DEFAULT = 15*60*1000; // 15 min
   let lastActivity = Date.now();
@@ -4787,26 +4935,47 @@ const IdleLock=(function(){
     if(locked) return;
     if(!state.admin?.pin){ return; } // pas de PIN, pas de verrou
     locked = true;
+    const bioAvailable = BioAuth.available() && BioAuth.enrolled();
     let ov = document.getElementById("idle-lock");
-    if(!ov){
-      ov = document.createElement("div");
-      ov.id = "idle-lock";
-      ov.className = "idle-lock";
-      ov.innerHTML = `
-        <div class="idle-lock-box">
-          <div class="idle-lock-icon">${ic("lock")}</div>
-          <div class="idle-lock-title">BOSS est verrouillée</div>
-          <div class="idle-lock-sub">Inactivité — saisis ton code administrateur pour rouvrir.</div>
-          <input class="field" id="idle-lock-code" type="password" inputmode="numeric" autocomplete="off" placeholder="Code administrateur">
-          <button class="sheet-add" id="idle-lock-go">Déverrouiller</button>
-          <div class="idle-lock-err" id="idle-lock-err"></div>
-        </div>`;
-      document.body.appendChild(ov);
-    }
+    if(ov){ ov.remove(); ov = null; }
+    ov = document.createElement("div");
+    ov.id = "idle-lock";
+    ov.className = "idle-lock";
+    ov.innerHTML = `
+      <div class="idle-lock-box">
+        <div class="idle-lock-icon">${ic("lock")}</div>
+        <div class="idle-lock-title">BOSS est verrouillée</div>
+        <div class="idle-lock-sub">Inactivité — utilise ta biométrie ou ton code pour rouvrir.</div>
+        ${bioAvailable?`<button class="sheet-add" id="idle-lock-bio" style="margin-bottom:10px">👆 Utiliser ma biométrie</button><div class="idle-lock-or">— ou —</div>`:""}
+        <input class="field" id="idle-lock-code" type="password" inputmode="numeric" autocomplete="off" placeholder="Code administrateur">
+        <button class="sheet-add" id="idle-lock-go" style="background:var(--char2);color:var(--cream);border:1px solid var(--line)">Déverrouiller avec le code</button>
+        <div class="idle-lock-err" id="idle-lock-err"></div>
+      </div>`;
+    document.body.appendChild(ov);
     ov.style.display = "flex";
-    setTimeout(()=>{ const i=document.getElementById("idle-lock-code"); i && i.focus(); }, 100);
+    setTimeout(()=>{
+      const bioBtn = document.getElementById("idle-lock-bio");
+      if(bioBtn){ bioBtn.focus(); tryBio(); }
+      else { const i=document.getElementById("idle-lock-code"); i && i.focus(); }
+    }, 150);
     document.getElementById("idle-lock-go").onclick = tryUnlock;
     document.getElementById("idle-lock-code").onkeydown = e=>{ if(e.key==="Enter") tryUnlock(); };
+    const bioBtn = document.getElementById("idle-lock-bio");
+    if(bioBtn) bioBtn.onclick = tryBio;
+  }
+  async function tryBio(){
+    const err = document.getElementById("idle-lock-err");
+    try {
+      const ok = await BioAuth.verify();
+      if(ok){
+        err.textContent = "";
+        document.getElementById("idle-lock").style.display = "none";
+        locked = false;
+        bump();
+      }
+    } catch(e){
+      err.textContent = "Vérification biométrique refusée. Utilise ton code.";
+    }
   }
   function tryUnlock(){
     const code = document.getElementById("idle-lock-code").value;
