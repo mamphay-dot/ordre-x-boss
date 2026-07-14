@@ -937,6 +937,8 @@ function openPlus(){
     <button class="plus-item" id="pl-perso">${ic("config")} Personnaliser mon menu</button>
     <button class="plus-item" id="pl-templates">${ic("boutique")} Templates métier prêts</button>
     <button class="plus-item" id="pl-qr">${ic("share")} QR code de ma boutique</button>
+    <button class="plus-item" id="pl-cat-send">${ic("share")} Envoyer mon catalogue à un autre BOSS</button>
+    <button class="plus-item" id="pl-cat-open">${ic("import")} Ouvrir un catalogue reçu</button>
     <button class="plus-item" id="pl-thermal">${ic("pos")} Imprimer un ticket (Bluetooth)</button>
     <button class="plus-item" id="pl-stats">${ic("dash")} Statistiques & prévision</button>
     <button class="plus-item" id="pl-alertes">${ic("warn")} Alertes intelligentes</button>
@@ -977,6 +979,8 @@ function openPlus(){
   const plp=$("#pl-perso"); if(plp) plp.onclick=()=>{ closeSheet(); openPersonnalisation(); };
   const pltp=$("#pl-templates"); if(pltp) pltp.onclick=()=>{ closeSheet(); openTemplates(); };
   const plqr=$("#pl-qr"); if(plqr) plqr.onclick=()=>{ closeSheet(); openQRShop(); };
+  const plcs=$("#pl-cat-send"); if(plcs) plcs.onclick=()=>{ closeSheet(); openCatalogExport(); };
+  const plco=$("#pl-cat-open"); if(plco) plco.onclick=()=>{ closeSheet(); openCatalogImport(); };
   const plth=$("#pl-thermal"); if(plth) plth.onclick=()=>{ closeSheet(); openThermalPrint(); };
   const plst=$("#pl-stats"); if(plst) plst.onclick=()=>{ closeSheet(); openStats(); };
   const plal=$("#pl-alertes"); if(plal) plal.onclick=()=>{ closeSheet(); openAlertes(); };
@@ -2505,6 +2509,217 @@ function metiersCount(){ return Math.max(1,Object.keys(state.profiles).length); 
    saisir un code (PIN admin OU mot de passe cloud) pour rouvrir.
    Empêche l'accès physique opportuniste à un téléphone déverrouillé.
 */
+/* ============================================================
+   CATALOGUE PARTAGÉ ENTRE UTILISATEURS BOSS
+   Format d'échange .boss-catalog.json : le patron exporte,
+   le destinataire ouvre dans BOSS pour parcourir/importer.
+   ============================================================ */
+
+const CATALOG_MIME = "application/json";
+const CATALOG_TYPE = "boss-catalog";
+const CATALOG_VERSION = 1;
+
+function buildCatalogPayload(p, opts){
+  opts = opts||{};
+  const products = (p.revenus||[]).filter(r=>r.nom).map(r=>({
+    nom: r.nom, prix: r.prix||0, cout: r.cout||0,
+    qte: r.qte||0, stock: (typeof r.stock==="number"?r.stock:null),
+    desc: r.desc||"", vitrine: !!r.vitrine, unite: r.unite||null,
+    photo: opts.includePhotos ? (r.photo||null) : null
+  }));
+  return {
+    type: CATALOG_TYPE,
+    version: CATALOG_VERSION,
+    exported_at: new Date().toISOString(),
+    sender: {
+      business_name: p.name || "—",
+      metier: p.metier || null,
+      unite: p.unite || null,
+      tel: p.identite?.tel || "",
+      email: p.identite?.email || "",
+      adresse: p.identite?.adresse || "",
+      slogan: p.identite?.slogan || "",
+      logo: opts.includePhotos ? (p.identite?.logo || null) : null
+    },
+    products
+  };
+}
+
+function openCatalogExport(){
+  const p = cur();
+  const nbProds = (p.revenus||[]).filter(r=>r.nom).length;
+  const nbPhotos = (p.revenus||[]).filter(r=>r.photo).length;
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Envoyer mon catalogue</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Génère un fichier <b>.boss-catalog.json</b> avec tes ${nbProds} produits + tes coordonnées. Le destinataire l'ouvre dans BOSS pour parcourir, contacter ou importer.</div>
+    <div class="ad-card">
+      <div class="ad-row"><span>Produits</span><b>${nbProds}</b></div>
+      <div class="ad-row"><span>Photos disponibles</span><b>${nbPhotos}</b></div>
+      <div class="ad-row"><span>Business</span><b>${escapeHtml(p.name||"—")}</b></div>
+      <div class="ad-row"><span>Téléphone joint</span><b>${escapeHtml(p.identite?.tel||"—")}</b></div>
+    </div>
+    <label class="switch-row" style="margin-top:12px"><span>Inclure les photos <span class="muted2">(fichier plus lourd)</span></span><input type="checkbox" id="cat-photos" ${nbPhotos>0?"checked":""}></label>
+    <div class="aff-actions">
+      <button class="sheet-add" id="cat-share">📱 Partager (WhatsApp / email)</button>
+      <button class="plus-item" id="cat-download">📥 Télécharger le fichier</button>
+      <button class="plus-item" id="cat-qr">📤 Générer un QR pour l'envoi</button>
+    </div>
+    <div id="cat-status" class="ps-note"></div>`;
+  $("#sheet-close").onclick = closeSheet;
+
+  function makeBlob(){
+    const withPhotos = $("#cat-photos").checked;
+    const payload = buildCatalogPayload(p, {includePhotos: withPhotos});
+    return new Blob([JSON.stringify(payload, null, 2)], {type: CATALOG_MIME});
+  }
+  function fileName(){
+    const safe = (p.name||"boss").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+    return `catalogue-${safe}.boss-catalog.json`;
+  }
+  $("#cat-download").onclick = ()=>{
+    const b = makeBlob();
+    const url = URL.createObjectURL(b);
+    const a = document.createElement("a"); a.href = url; a.download = fileName(); a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    $("#cat-status").textContent = "✅ Fichier téléchargé.";
+  };
+  $("#cat-share").onclick = async ()=>{
+    const b = makeBlob();
+    const file = new File([b], fileName(), {type: CATALOG_MIME});
+    const shareData = {
+      files:[file],
+      title:"Catalogue BOSS — "+(p.name||""),
+      text:`Voici mon catalogue BOSS. Ouvre le fichier dans l'app BOSS (boss.ordre-x.com) pour le parcourir.\n\n${p.name||""}${p.identite?.tel?"\n📞 "+p.identite.tel:""}`
+    };
+    if(navigator.canShare && navigator.canShare(shareData) && navigator.share){
+      try { await navigator.share(shareData); $("#cat-status").textContent = "✅ Partagé."; }
+      catch(e){ if(e.name!=="AbortError") $("#cat-status").textContent = "Échec : "+(e.message||""); }
+    } else {
+      // Repli : téléchargement + ouverture WhatsApp Web avec texte
+      $("#cat-download").click();
+      const wa = "https://wa.me/?text="+encodeURIComponent(shareData.text+"\n\nJoins le fichier téléchargé.");
+      window.open(wa, "_blank");
+    }
+  };
+  $("#cat-qr").onclick = ()=>{
+    // QR : URL directe pour ouvrir catalogue via URL query (nécessite hébergement)
+    // Alternative simple : QR contenant les infos contact + lien BOSS pour importer
+    const target = "https://boss.ordre-x.com/?catalog="+encodeURIComponent(p.name||"");
+    let matrix; try { matrix = QRCode.encode(target); } catch(e){ alert("Génération QR impossible"); return; }
+    const svg = QRCode.toSVG(matrix, 480, "#0E0E0F", "#ffffff");
+    sheet.innerHTML = `
+      <div class="sheet-head"><h3>QR pour partager en boutique</h3><button class="x" id="sheet-close">×</button></div>
+      <div class="ps-note">Imprime ce QR à l'entrée. Un scan renvoie vers ton catalogue BOSS.</div>
+      <div class="qr-preview">${svg}</div>
+      <button class="sheet-add" id="cat-qr-back">← Retour</button>`;
+    $("#sheet-close").onclick = closeSheet;
+    $("#cat-qr-back").onclick = openCatalogExport;
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function openCatalogImport(preloadedFile){
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Ouvrir un catalogue reçu</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Choisis le fichier <b>.boss-catalog.json</b> reçu (WhatsApp, email, téléchargements…). Tu pourras parcourir puis ajouter les produits qui t'intéressent.</div>
+    <input class="field" id="cat-imp-file" type="file" accept="application/json,.json">
+    <div id="cat-preview"></div>`;
+  $("#sheet-close").onclick = closeSheet;
+  const readFile = f => new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(rd.result); rd.onerror=()=>rej(new Error("Lecture du fichier impossible")); rd.readAsText(f); });
+  const handleFile = async f => {
+    try {
+      const txt = await readFile(f);
+      const payload = JSON.parse(txt);
+      if(payload.type !== CATALOG_TYPE){ throw new Error("Ce fichier n'est pas un catalogue BOSS"); }
+      renderCatalogPreview(payload);
+    } catch(e){
+      $("#cat-preview").innerHTML = `<div class="ps-note" style="color:#f96">Fichier invalide : ${escapeHtml(e.message||"")}</div>`;
+    }
+  };
+  $("#cat-imp-file").onchange = e=>{ const f=e.target.files?.[0]; if(f) handleFile(f); };
+  if(preloadedFile) handleFile(preloadedFile);
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function renderCatalogPreview(payload){
+  const box = $("#cat-preview");
+  const s = payload.sender || {};
+  const products = payload.products || [];
+  const gridItems = products.map((r,i)=>`
+    <div class="cat-p-card">
+      ${r.photo?`<div class="cat-p-img" style="background-image:url('${safeImgUrl(r.photo)}')"></div>`
+        :`<div class="cat-p-img cat-p-noimg">${escapeHtml((r.nom||"?").slice(0,1).toUpperCase())}</div>`}
+      <div class="cat-p-body">
+        <div class="cat-p-name">${escapeHtml(r.nom||"—")}</div>
+        <div class="cat-p-price">${BOSS.fmtF(r.prix||0)}</div>
+        ${r.desc?`<div class="cat-p-desc">${escapeHtml(r.desc)}</div>`:""}
+      </div>
+      <label class="cat-p-check"><input type="checkbox" data-i="${i}" checked><span>Ajouter</span></label>
+    </div>`).join("");
+  const waLink = s.tel ? "https://wa.me/"+String(s.tel).replace(/\D/g,"") : null;
+  box.innerHTML = `
+    <div class="ad-card">
+      <div class="ad-card-title">De la part de</div>
+      <div class="ad-row"><span>Business</span><b>${escapeHtml(s.business_name||"—")}</b></div>
+      ${s.metier?`<div class="ad-row"><span>Métier</span><b>${escapeHtml(s.metier)}</b></div>`:""}
+      ${s.tel?`<div class="ad-row"><span>Téléphone</span><b>${escapeHtml(s.tel)}</b></div>`:""}
+      ${s.email?`<div class="ad-row"><span>Email</span><b>${escapeHtml(s.email)}</b></div>`:""}
+      ${s.adresse?`<div class="ad-row"><span>Adresse</span><b>${escapeHtml(s.adresse)}</b></div>`:""}
+      <div class="ad-row"><span>Exporté le</span><b>${fmtDate(payload.exported_at)}</b></div>
+    </div>
+    ${waLink?`<a class="plus-item" href="${waLink}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none">💬 Contacter sur WhatsApp</a>`:""}
+    <h3 style="margin:14px 0 8px 0">${products.length} produits</h3>
+    <div class="cat-p-grid">${gridItems||"<div class='ps-note'>Aucun produit dans ce catalogue.</div>"}</div>
+    <div class="aff-actions">
+      <button class="sheet-add" id="cat-add-selected">➕ Ajouter les produits cochés à ma boutique</button>
+      <button class="plus-item" id="cat-add-all">➕ Tout ajouter</button>
+      <button class="plus-item" id="cat-toggle-all">Cocher / décocher tout</button>
+    </div>
+    <div id="cat-add-status" class="ps-note"></div>`;
+  const currentSender = s.business_name || "inconnu";
+  $("#cat-add-selected").onclick = async ()=>{
+    const checked = [...box.querySelectorAll('.cat-p-check input:checked')].map(i=>+i.dataset.i);
+    await addProductsFromCatalog(products.filter((_,i)=>checked.includes(i)), currentSender);
+  };
+  $("#cat-add-all").onclick = async ()=>{
+    await addProductsFromCatalog(products, currentSender);
+  };
+  $("#cat-toggle-all").onclick = ()=>{
+    const all = [...box.querySelectorAll('.cat-p-check input')];
+    const anyChecked = all.some(i=>i.checked);
+    all.forEach(i=>i.checked = !anyChecked);
+  };
+}
+
+async function addProductsFromCatalog(products, sender){
+  if(!products.length){ $("#cat-add-status").textContent = "Rien à ajouter."; return; }
+  if(!confirm("Ajouter "+products.length+" produit(s) à ta boutique ?")) return;
+  const p = cur();
+  if(!Array.isArray(p.revenus)) p.revenus = [];
+  const seen = new Set(p.revenus.map(r=>String(r.nom||"").toLowerCase().trim()));
+  let added = 0, skipped = 0;
+  for(const r of products){
+    const key = String(r.nom||"").toLowerCase().trim();
+    if(!key){ skipped++; continue; }
+    if(seen.has(key)){ skipped++; continue; }
+    p.revenus.push({
+      id: "r"+Math.random().toString(36).slice(2,9),
+      nom: r.nom, prix: r.prix||0, cout: r.cout||0,
+      qte: r.qte||0, stock: (typeof r.stock==="number"?r.stock:null),
+      desc: r.desc||"", vitrine: r.vitrine!==false, unite: r.unite,
+      photo: r.photo || null,
+      source: sender
+    });
+    seen.add(key);
+    added++;
+  }
+  await persist();
+  $("#cat-add-status").innerHTML = `<span style="color:#7c7">✅ ${added} produit(s) ajouté(s)</span>${skipped?` · <span class="muted">${skipped} ignoré(s) (doublons)</span>`:""}`;
+  refreshAll();
+}
+
 /* ============================================================
    BIOMÉTRIE — Écran de configuration
    ============================================================ */
@@ -4665,6 +4880,19 @@ window.addEventListener("DOMContentLoaded",async()=>{
   if(!p.revenus.length && !p.charges.length && !(p.caisse||[]).length){ startOnboard(); showView("onboard"); }
   else { refreshAll(); showView((p.ui&&p.ui.home)||"dash"); }
   const sn=$("#storage-note"); if(sn) sn.textContent=Store.label();
+  // PWA file handler : réception d'un fichier .boss-catalog.json depuis le système
+  if("launchQueue" in window){
+    try {
+      window.launchQueue.setConsumer(async (launchParams)=>{
+        if(!launchParams || !launchParams.files || !launchParams.files.length) return;
+        try {
+          const fh = launchParams.files[0];
+          const file = await fh.getFile();
+          setTimeout(()=>openCatalogImport(file), 400);
+        } catch(e){}
+      });
+    } catch(e){}
+  }
   // installation PWA
   window.addEventListener("beforeinstallprompt",ev=>{ ev.preventDefault(); deferredInstall=ev; updateInstallHint(); });
   window.addEventListener("appinstalled",()=>{ deferredInstall=null; updateInstallHint(); });

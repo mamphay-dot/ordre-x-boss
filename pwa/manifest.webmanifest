@@ -21,5 +21,29 @@
   "shortcuts": [
     { "name": "Commandes & livraisons", "short_name": "Commandes", "url": "./index.html#commandes" },
     { "name": "Caisse", "short_name": "Caisse", "url": "./index.html#caisse" }
-  ]
+  ],
+  "file_handlers": [
+    {
+      "action": "./index.html",
+      "accept": {
+        "application/json": [".boss-catalog.json", ".json"]
+      },
+      "launch_type": "single-client"
+    }
+  ],
+  "share_target": {
+    "action": "./index.html",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "files": [
+        {
+          "name": "catalog",
+          "accept": ["application/json", ".boss-catalog.json", ".json"]
+        }
+      ]
+    }
+  }
 }
