@@ -211,6 +211,7 @@ async function restore(){
   if(typeof state.easyMode !== "boolean"){ state.easyMode=false; created=true; }
   if(!state.easyVoice){ state.easyVoice={enabled:true, lang:"fr-FR"}; created=true; }
   if(typeof state.easyTutoDone !== "boolean"){ state.easyTutoDone=false; created=true; }
+  if(typeof state.classicTutoDone !== "boolean"){ state.classicTutoDone=false; created=true; }
   else if(!state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
   if(!state.currentId || !state.profiles[state.currentId]){
     const p=BOSS.blankProfile("Mon business");
@@ -951,6 +952,7 @@ function openPlus(){
     <button class="plus-item" id="pl-bio">${ic("check")} Déverrouillage biométrique (Face ID / empreinte)</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
+    <button class="plus-item" id="pl-tuto" style="border:1.5px solid var(--gold);color:var(--gold);font-weight:700">🎓 Revoir le tuto de l'application (10 images)</button>
     <button class="plus-item" id="pl-help">${ic("help")} Aide & tutoriel</button>
     <button class="plus-item" id="pl-config">${ic("config")} Réglages détaillés (dont TVA)</button>
     <button class="plus-item" id="pl-export">${ic("export")} Exporter une sauvegarde</button>
@@ -974,6 +976,7 @@ function openPlus(){
   const plt=$("#pl-treso"); if(plt) plt.onclick=()=>{ closeSheet(); showView("tresorerie"); };
   const pli=$("#pl-identity"); if(pli) pli.onclick=()=>{ openIdentity(); };
   const plh=$("#pl-help"); if(plh) plh.onclick=()=>{ openHelp(); };
+  const plt2=$("#pl-tuto"); if(plt2) plt2.onclick=()=>{ closeSheet(); openClassicTuto(); };
   $("#pl-clients").onclick=()=>{ closeSheet(); showView("clients"); };
   $("#pl-historique").onclick=()=>{ closeSheet(); showView("historique"); };
   $("#pl-pay").onclick=()=>{ openPaySettings(); };
@@ -5208,15 +5211,17 @@ const EASY_TUTO_STEPS = [
   }
 ];
 
-function openEasyTuto(){
+function openTuto(steps, doneKey, opts){
+  opts = opts || {};
   let step = 0;
   const back = document.getElementById("tuto-back");
   const card = document.getElementById("tuto-card");
-  const total = EASY_TUTO_STEPS.length;
+  const total = steps.length;
+  const autoVoice = opts.autoVoice !== false;
 
   function render(){
-    const s = EASY_TUTO_STEPS[step];
-    const dots = EASY_TUTO_STEPS.map((_,i)=>`<span class="tuto-dot${i===step?" on":""}"></span>`).join("");
+    const s = steps[step];
+    const dots = steps.map((_,i)=>`<span class="tuto-dot${i===step?" on":""}"></span>`).join("");
     const last = step === total-1;
     card.innerHTML = `
       <button class="tuto-skip" id="tuto-skip">${last?"":"Passer"}</button>
@@ -5224,27 +5229,110 @@ function openEasyTuto(){
       <h2 class="tuto-title">${escapeHtml(s.title)}</h2>
       <div class="tuto-sub">${escapeHtml(s.sub)}</div>
       ${s.visu?`<div class="tuto-visu">${s.visu}</div>`:""}
-      <button class="tuto-mic" id="tuto-repeat">🔊 Répéter</button>
+      ${s.voice?`<button class="tuto-mic" id="tuto-repeat">🔊 Répéter</button>`:""}
       <div class="tuto-dots">${dots}</div>
       <button class="tuto-next" id="tuto-next">${last?"✓ J'ai compris":"Suivant →"}</button>
     `;
     document.getElementById("tuto-skip").onclick = ()=>close();
-    document.getElementById("tuto-repeat").onclick = ()=>EasyMode.speak(s.voice);
+    const rep = document.getElementById("tuto-repeat");
+    if(rep) rep.onclick = ()=>EasyMode.speak(s.voice);
     document.getElementById("tuto-next").onclick = ()=>{
       EasyMode.stop();
       if(last){ close(); return; }
       step++; render();
     };
-    setTimeout(()=>EasyMode.speak(s.voice), 250);
+    if(autoVoice && s.voice) setTimeout(()=>EasyMode.speak(s.voice), 250);
   }
   function close(){
     EasyMode.stop();
     back.classList.remove("on");
-    state.easyTutoDone = true; persist();
+    if(doneKey){ state[doneKey] = true; persist(); }
   }
   render();
   back.classList.add("on");
 }
+
+function openEasyTuto(){ openTuto(EASY_TUTO_STEPS, "easyTutoDone"); }
+function openClassicTuto(){ openTuto(CLASSIC_TUTO_STEPS, "classicTutoDone", {autoVoice: !!(state.easyVoice&&state.easyVoice.enabled)}); }
+
+/* ---------- Cartes du tuto pour la version complète ---------- */
+const CLASSIC_TUTO_STEPS = [
+  {
+    emoji: "👋",
+    title: "Bienvenue dans BOSS",
+    sub: "Je vais te faire visiter en 10 images. Passe si tu connais déjà.",
+    voice: "Bienvenue dans BOSS. Je vais te faire visiter l'application en dix images."
+  },
+  {
+    emoji: "📊",
+    title: "Tableau de bord",
+    sub: "Tes vrais chiffres du mois : ce que tu gagnes, ta marge, ton seuil.",
+    visu: `<div style="background:var(--char);border:1.5px solid var(--gold);border-radius:14px;padding:14px;width:100%;text-align:left"><div style="color:var(--cream-dim);font-size:12px">Ton vrai bénéfice / mois</div><div style="font-family:'Archivo';font-weight:900;font-size:32px;color:var(--gold);margin:4px 0">+ 245 000 F</div><div style="color:var(--cream);font-size:12.5px">Après tout payé, il te reste 245 000 F ce mois.</div></div>`,
+    voice: "Le tableau de bord montre tes vrais chiffres du mois. Tes gains, ta marge, ton seuil de rentabilité."
+  },
+  {
+    emoji: "🛍️",
+    title: "Boutique",
+    sub: "Tes produits, prix, photos. Un catalogue WhatsApp automatique.",
+    visu: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%"><div style="background:var(--char);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px">🍗</div><div style="font-size:11.5px;color:var(--cream)">Poulet braisé</div><div style="color:var(--gold);font-weight:700;font-size:12.5px">2 500 F</div></div><div style="background:var(--char);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px">🥤</div><div style="font-size:11.5px;color:var(--cream)">Jus bissap</div><div style="color:var(--gold);font-weight:700;font-size:12.5px">500 F</div></div></div>`,
+    voice: "Dans Boutique, tu ajoutes tes produits avec photos et prix. Tu peux même envoyer ton catalogue sur WhatsApp."
+  },
+  {
+    emoji: "💵",
+    title: "Caisse",
+    sub: "Chaque vente et dépense du jour. En espèces, banque ou mobile money.",
+    visu: `<div style="width:100%"><div style="display:flex;justify-content:space-between;background:var(--char);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12.5px"><span style="color:#7dd095">💰 Vente · Poulet</span><span style="color:var(--cream);font-weight:700">+ 2 500 F</span></div><div style="display:flex;justify-content:space-between;background:var(--char);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px"><span style="color:#f19595">💸 Charbon</span><span style="color:var(--cream);font-weight:700">- 800 F</span></div></div>`,
+    voice: "La Caisse enregistre chaque vente et chaque dépense. Espèces, banque, ou mobile money."
+  },
+  {
+    emoji: "📦",
+    title: "Stock",
+    sub: "Surveille ton inventaire. BOSS t'alerte quand ça devient bas.",
+    visu: `<div style="width:100%"><div style="background:var(--char);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12.5px;display:flex;justify-content:space-between"><span style="color:var(--cream)">Poulets</span><span style="color:#7dd095;font-weight:700">15 restants</span></div><div style="background:var(--char);border:1px solid #8a6a2a;border-radius:8px;padding:10px 12px;font-size:12.5px;display:flex;justify-content:space-between"><span style="color:var(--cream)">Charbon</span><span style="color:#f3c162;font-weight:700">⚠️ 2 sacs</span></div></div>`,
+    voice: "Stock te dit combien il te reste. Si ton charbon devient bas, BOSS te prévient."
+  },
+  {
+    emoji: "🧾",
+    title: "Carnet de dettes",
+    sub: "Qui te doit combien. Bouton pour relancer par WhatsApp.",
+    visu: `<div style="width:100%"><div style="background:var(--char);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px"><div style="color:var(--cream);font-weight:700">Awa Diarra</div><div style="color:var(--cream-dim);font-size:11px">2 tenues · depuis 12 jours</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px"><span style="color:#f3c162;font-weight:700">15 000 F</span><span style="background:#25D366;color:#fff;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:700">📱 Relancer</span></div></div></div>`,
+    voice: "Le Carnet mémorise qui te doit combien. Un bouton pour relancer directement par WhatsApp."
+  },
+  {
+    emoji: "🚚",
+    title: "Commandes & livraisons",
+    sub: "Les commandes du jour, les tournées de livraison à faire.",
+    voice: "Commandes gère les livraisons à faire. Tu vois les adresses, les montants à encaisser, et tu peux marquer livré."
+  },
+  {
+    emoji: "🏦",
+    title: "Trésorerie",
+    sub: "Ton argent réel dans les caisses. Rapprochement banque possible.",
+    voice: "Trésorerie te montre l'argent réel dans chaque caisse. Tu peux même faire un rapprochement avec la banque."
+  },
+  {
+    emoji: "🤖",
+    title: "Coach BOSS (IA)",
+    sub: "Pose tes questions. « Comment vendre plus ? », « J'ai combien perdu ? »",
+    visu: `<div style="width:100%;text-align:left"><div style="background:var(--char);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--cream);font-size:12.5px;font-style:italic;margin-bottom:6px">« Comment augmenter mes ventes ? »</div><div style="background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:1px solid var(--gold);border-radius:12px;padding:10px 12px;color:var(--gold);font-size:12.5px">Ouvre plus tôt le matin, propose une offre le lundi (jour creux)…</div></div>`,
+    voice: "Coach BOSS répond à tes questions. Comment vendre plus, comment baisser tes charges. C'est gratuit."
+  },
+  {
+    emoji: "⚙️",
+    title: "Le bouton « Plus »",
+    sub: "Toutes les autres fonctions : équipe, thème, sauvegarde, mode Facile…",
+    visu: `<div style="background:var(--char2);border:1px dashed var(--gold);border-radius:14px;padding:12px 16px;font-size:13px;color:var(--cream);text-align:left;line-height:1.7">🔊 Mode Facile<br>👥 Mon équipe<br>💾 Sauvegarde<br>🎨 Thème et couleur<br>📄 Rapports fiscaux<br><span style="color:var(--cream-dim)">et plus encore…</span></div>`,
+    voice: "Le bouton Plus regroupe tout le reste. Ton équipe, tes sauvegardes, le mode Facile, les rapports pour l'État."
+  },
+  {
+    emoji: "✅",
+    title: "C'est parti !",
+    sub: "Explore comme tu veux. Tout se sauve automatiquement.",
+    voice: "Voilà, tu connais BOSS. Explore comme tu veux. Tout se sauve tout seul. Bon business."
+  }
+];
+
+
 
 /* Reconnaît quelques nombres écrits en français : mille, deux mille cinq cent, etc. */
 function parseFrenchNumber(txt){
@@ -5278,7 +5366,10 @@ window.addEventListener("DOMContentLoaded",async()=>{
     document.body.classList.add("easy");
     refreshAll(); renderEasyHome(); showView("easy");
   } else if(!p.revenus.length && !p.charges.length && !(p.caisse||[]).length){ startOnboard(); showView("onboard"); }
-  else { refreshAll(); showView((p.ui&&p.ui.home)||"dash"); }
+  else {
+    refreshAll(); showView((p.ui&&p.ui.home)||"dash");
+    if(!state.classicTutoDone) setTimeout(openClassicTuto, 700);
+  }
   const sn=$("#storage-note"); if(sn) sn.textContent=Store.label();
   // PWA file handler : réception d'un fichier .boss-catalog.json depuis le système
   if("launchQueue" in window){
