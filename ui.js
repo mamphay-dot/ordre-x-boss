@@ -4421,364 +4421,278 @@ function wrapText(str, maxChars){
 function tspanLines(lines, x, y, dy){
   return lines.map((l,i)=>`<tspan x="${x}" dy="${i===0?0:dy}">${escapeSvg(l)}</tspan>`).join("");
 }
-function affPrice(v){ return v==null?"—":(Math.round(v).toLocaleString("fr-FR")+" F"); }
 
-/* ---------- GABARIT 1 : VITRINE SOLO ---------- */
-function tplVitrine(cfg){
-  const { title, subtitle, price, photo, logo, phone, address, accent } = cfg;
-  const acc = accent || "#C8A23A";
-  const nameLines = wrapText(title||"Nom du produit", 18);
-  const nameHtml = tspanLines(nameLines.slice(0,2), 540, 1030, 68);
-  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <rect width="1080" height="1350" fill="#0E0E0F"/>
-    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
-    ${logo?`<image href="${logo}" x="70" y="80" width="140" height="140" preserveAspectRatio="xMidYMid meet"/>`:
-      `<circle cx="140" cy="150" r="55" fill="${acc}"/><text x="140" y="170" font-family="Archivo" font-weight="900" font-size="48" fill="#0E0E0F" text-anchor="middle">B</text>`}
-    <text x="240" y="130" font-family="Archivo" font-weight="900" font-size="42" fill="#ECECEE">${escapeSvg(subtitle||"BOSS")}</text>
-    <text x="240" y="178" font-family="Inter" font-size="22" fill="#9A9AA0">${escapeSvg(phone||"")}</text>
-    ${photo?`<clipPath id="phV"><rect x="90" y="260" width="900" height="640" rx="20"/></clipPath>
-      <image href="${photo}" x="90" y="260" width="900" height="640" preserveAspectRatio="xMidYMid slice" clip-path="url(#phV)"/>`:
-      `<rect x="90" y="260" width="900" height="640" rx="20" fill="#1A1A1C" stroke="#34343A" stroke-width="2"/>
-       <text x="540" y="590" font-family="Inter" font-size="26" fill="#9A9AA0" text-anchor="middle">Photo du produit</text>`}
-    <rect x="0" y="960" width="1080" height="390" fill="#1A1A1C"/>
-    <text font-family="Archivo" font-weight="800" font-size="60" fill="#ECECEE" text-anchor="middle">${nameHtml}</text>
-    <text x="540" y="1180" font-family="Archivo" font-weight="900" font-size="130" fill="${acc}" text-anchor="middle">${escapeSvg(affPrice(price))}</text>
-    <text x="540" y="1290" font-family="Inter" font-size="24" fill="#9A9AA0" text-anchor="middle">${escapeSvg(address||"")}</text>
-  </svg>`;
-}
+/* ============================================================
+   AFFICHES — refonte 2026 : IA visuelle + partage multicanal
+   ============================================================ */
+let __aff = null;
 
-/* ---------- GABARIT 2 : CATALOGUE 3 PRODUITS ---------- */
-function tplGrille3(cfg){
-  const { title, subtitle, products, logo, phone, address, accent } = cfg;
-  const acc = accent || "#C8A23A";
-  const items = (products||[]).slice(0,3);
-  while(items.length<3) items.push({nom:"Ton produit",prix:0,photo:null});
-  const cardX=[60,395,730];
-  const cards = items.map((p,i)=>{
-    const nlines = wrapText(p.nom||"Produit", 14).slice(0,2);
-    const nameHtml = tspanLines(nlines, cardX[i]+145, 900, 34);
-    return `
-      ${p.photo?`<clipPath id="ph3_${i}"><rect x="${cardX[i]}" y="620" width="290" height="220" rx="14"/></clipPath>
-        <image href="${p.photo}" x="${cardX[i]}" y="620" width="290" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#ph3_${i})"/>`:
-        `<rect x="${cardX[i]}" y="620" width="290" height="220" rx="14" fill="#242427"/>
-         <text x="${cardX[i]+145}" y="740" font-family="Inter" font-size="18" fill="#9A9AA0" text-anchor="middle">Photo</text>`}
-      <text font-family="Archivo" font-weight="700" font-size="26" fill="#ECECEE" text-anchor="middle">${nameHtml}</text>
-      <text x="${cardX[i]+145}" y="1010" font-family="Archivo" font-weight="900" font-size="42" fill="${acc}" text-anchor="middle">${escapeSvg(affPrice(p.prix))}</text>`;
-  }).join("");
-  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <rect width="1080" height="1350" fill="#0E0E0F"/>
-    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
-    ${logo?`<image href="${logo}" x="70" y="70" width="120" height="120" preserveAspectRatio="xMidYMid meet"/>`:""}
-    <text x="220" y="120" font-family="Archivo" font-weight="900" font-size="50" fill="${acc}">${escapeSvg(title||"NOTRE CATALOGUE")}</text>
-    <text x="220" y="170" font-family="Inter" font-size="24" fill="#9A9AA0">${escapeSvg(subtitle||"")}</text>
-    <line x1="60" y1="220" x2="1020" y2="220" stroke="${acc}" stroke-width="3"/>
-    <text x="540" y="330" font-family="Archivo" font-weight="800" font-size="52" fill="#ECECEE" text-anchor="middle">Découvre nos offres</text>
-    <text x="540" y="400" font-family="Inter" font-size="24" fill="#9A9AA0" text-anchor="middle">Commande directement par WhatsApp</text>
-    ${cards}
-    <rect x="0" y="1150" width="1080" height="200" fill="#1A1A1C"/>
-    <text x="540" y="1230" font-family="Archivo" font-weight="800" font-size="42" fill="${acc}" text-anchor="middle">${escapeSvg(phone||"")}</text>
-    <text x="540" y="1290" font-family="Inter" font-size="22" fill="#9A9AA0" text-anchor="middle">${escapeSvg(address||"")}</text>
-  </svg>`;
-}
-
-/* ---------- GABARIT 3 : PROMO CHOC ---------- */
-function tplPromo(cfg){
-  const { title, subtitle, price, priceOld, promoLabel, promoUntil, photo, logo, phone, accent } = cfg;
-  const acc = accent || "#C8A23A";
-  const nameLines = wrapText(title||"Produit", 16).slice(0,2);
-  const nameHtml = tspanLines(nameLines, 540, 1020, 68);
-  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <rect width="1080" height="1350" fill="#0E0E0F"/>
-    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
-    ${logo?`<image href="${logo}" x="70" y="80" width="130" height="130" preserveAspectRatio="xMidYMid meet"/>`:""}
-    <text x="220" y="130" font-family="Archivo" font-weight="900" font-size="42" fill="#ECECEE">${escapeSvg(subtitle||"PROMO")}</text>
-    <text x="220" y="180" font-family="Inter" font-size="24" fill="#9A9AA0">${escapeSvg(phone||"")}</text>
-    ${photo?`<clipPath id="phP"><rect x="90" y="240" width="900" height="640" rx="20"/></clipPath>
-      <image href="${photo}" x="90" y="240" width="900" height="640" preserveAspectRatio="xMidYMid slice" clip-path="url(#phP)"/>`:
-      `<rect x="90" y="240" width="900" height="640" rx="20" fill="#1A1A1C"/>
-       <text x="540" y="570" font-family="Inter" font-size="26" fill="#9A9AA0" text-anchor="middle">Photo</text>`}
-    <g transform="translate(870 260) rotate(-12)">
-      <circle cx="0" cy="0" r="130" fill="${acc}"/>
-      <text y="-10" font-family="Archivo" font-weight="900" font-size="60" fill="#0E0E0F" text-anchor="middle">${escapeSvg(promoLabel||"-30%")}</text>
-      <text y="40" font-family="Inter" font-weight="700" font-size="22" fill="#0E0E0F" text-anchor="middle">PROMO</text>
-    </g>
-    <rect x="0" y="920" width="1080" height="430" fill="#1A1A1C"/>
-    <text font-family="Archivo" font-weight="800" font-size="60" fill="#ECECEE" text-anchor="middle">${nameHtml}</text>
-    ${priceOld?`<text x="540" y="1180" font-family="Archivo" font-size="52" fill="#9A9AA0" text-anchor="middle" text-decoration="line-through">${escapeSvg(affPrice(priceOld))}</text>`:""}
-    <text x="540" y="1270" font-family="Archivo" font-weight="900" font-size="120" fill="${acc}" text-anchor="middle">${escapeSvg(affPrice(price))}</text>
-    ${promoUntil?`<text x="540" y="1330" font-family="Inter" font-weight="600" font-size="22" fill="#e08" text-anchor="middle">⏰ Jusqu'au ${escapeSvg(promoUntil)}</text>`:""}
-  </svg>`;
-}
-
-/* ---------- GABARIT 4 : MENU DU JOUR ---------- */
-function tplMenu(cfg){
-  const { title, subtitle, products, hours, logo, phone, address, accent } = cfg;
-  const acc = accent || "#C8A23A";
-  const items = (products||[]).slice(0,6);
-  const rows = items.map((p,i)=>{
-    const y = 500 + i*100;
-    return `
-      <line x1="80" y1="${y+30}" x2="1000" y2="${y+30}" stroke="#242427" stroke-width="1"/>
-      <text x="80" y="${y+10}" font-family="Inter" font-weight="700" font-size="30" fill="#ECECEE">${escapeSvg((p.nom||"Produit").slice(0,32))}</text>
-      <text x="1000" y="${y+10}" font-family="Archivo" font-weight="800" font-size="34" fill="${acc}" text-anchor="end">${escapeSvg(affPrice(p.prix))}</text>`;
-  }).join("");
-  return `<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <rect width="1080" height="1350" fill="#0E0E0F"/>
-    <rect x="0" y="0" width="1080" height="4" fill="${acc}"/>
-    ${logo?`<image href="${logo}" x="70" y="70" width="130" height="130" preserveAspectRatio="xMidYMid meet"/>`:""}
-    <text x="540" y="180" font-family="Archivo" font-weight="900" font-size="72" fill="${acc}" text-anchor="middle">${escapeSvg(title||"MENU DU JOUR")}</text>
-    <text x="540" y="240" font-family="Inter" font-size="26" fill="#9A9AA0" text-anchor="middle">${escapeSvg(subtitle||"")}</text>
-    ${hours?`<rect x="290" y="290" width="500" height="70" rx="35" fill="#1A1A1C" stroke="${acc}" stroke-width="2"/>
-      <text x="540" y="335" font-family="Inter" font-weight="700" font-size="24" fill="${acc}" text-anchor="middle">🕐 ${escapeSvg(hours)}</text>`:""}
-    ${rows}
-    <rect x="0" y="1180" width="1080" height="170" fill="#1A1A1C"/>
-    <text x="540" y="1240" font-family="Archivo" font-weight="800" font-size="38" fill="${acc}" text-anchor="middle">${escapeSvg(phone||"")}</text>
-    <text x="540" y="1300" font-family="Inter" font-size="22" fill="#9A9AA0" text-anchor="middle">${escapeSvg(address||"")}</text>
-  </svg>`;
-}
-
-const AFFICHE_TEMPLATES = [
-  { id:"vitrine",  label:"Vitrine solo",       hint:"1 produit, prix géant, photo",    fn: tplVitrine },
-  { id:"grille3",  label:"Catalogue 3",        hint:"3 produits + prix",              fn: tplGrille3 },
-  { id:"promo",    label:"Promo choc",         hint:"Badge % + prix barré",           fn: tplPromo   },
-  { id:"menu",     label:"Menu du jour",       hint:"Liste + horaires (maquis)",      fn: tplMenu    }
+const AFF_STYLES = [
+  { id:"realiste", label:"📸 Réaliste",   hint:"Photo pro du produit",       prompt:"photorealistic, professional food photography, warm golden lighting, appetizing, ultra detailed, shallow depth of field" },
+  { id:"wax",      label:"🎨 Wax",        hint:"Fond pagne africain",        prompt:"vibrant african wax fabric pattern background, bogolan style, colorful geometric patterns, bold composition, high saturation" },
+  { id:"rue",      label:"🏙️ Rue",       hint:"Marché / rue africaine",     prompt:"authentic west african street market scene, natural daylight, dynamic composition, warm atmosphere, real people vibe blurred background" },
+  { id:"neon",     label:"⚡ Néon",       hint:"Affiche moderne punchy",     prompt:"modern neon poster art style, high contrast, bold saturated colors, cyberpunk africa vibe, striking composition" },
+  { id:"vintage",  label:"📻 Vintage",    hint:"Style publicité 70s",        prompt:"vintage 1970s african advertising poster style, warm faded colors, retro composition, screen print texture" }
 ];
 
-/* ---------- ÉDITEUR ---------- */
-let __aff = null; // config courante
+const AFF_FORMATS = [
+  { id:"square",   label:"📱 Carré (Facebook / Instagram)",  w:1080, h:1080, note:"Feed" },
+  { id:"story",    label:"📖 Vertical (Status / Story / TikTok)", w:1080, h:1920, note:"Story" },
+  { id:"whatsapp", label:"💬 WhatsApp direct",                w:1080, h:1080, note:"Auto texte" },
+  { id:"a4",       label:"🖨️ A4 imprimable (boutique)",       w:2480, h:3508, note:"Impression" }
+];
 
 function openAffiches(preselectedProductId){
   const p = cur();
   const products = (p.revenus||[]).filter(r=>r.nom);
-  const preselected = preselectedProductId ? products.find(r=>r.id===preselectedProductId) : products[0];
+  const idx = preselectedProductId ? Math.max(0, products.findIndex(r=>r.id===preselectedProductId)) : 0;
   __aff = {
-    tpl: "vitrine",
-    title: preselected?.nom || "",
-    subtitle: p.name || "",
-    price: preselected?.prix || 0,
-    priceOld: (preselected?.prix||0) > 0 ? Math.round((preselected.prix)*1.3) : 0,
-    promoLabel: "-30%",
-    promoUntil: "",
-    hours: "",
-    photo: preselected?.photo || null,
-    products: products.slice(0,6).map(r=>({nom:r.nom, prix:r.prix, photo:r.photo||null})),
-    logo: p.identite?.logo || null,
-    phone: p.identite?.tel || "",
-    address: p.identite?.adresse || "",
-    accent: (state.theme && state.theme.accent) || "#C8A23A"
+    products, productIdx: idx,
+    prompt: buildDefaultAffichePrompt(products[idx], p),
+    style: "realiste",
+    baseImage: null,       // dataURL image IA (1024×1024, sans texte)
+    generating: false,
+    error: null
   };
-  renderAfficheEditor();
+  renderAfficheSheet();
 }
 
-function renderAfficheEditor(){
+function buildDefaultAffichePrompt(product, profile){
+  if(!product) return "";
+  const ctx = {
+    maquis:      "on a wooden table in a lively west african maquis restaurant at sunset",
+    boutique:    "displayed in a modern west african shop with warm lighting",
+    coiffure:    "elegant west african beauty salon setting",
+    livraison:   "being delivered by motorbike in an african city",
+    couture:     "showcased in a stylish african tailoring studio",
+    cosmetique:  "elegant african cosmetics display, luxurious",
+    marche:      "on a colorful african market stall",
+    telephone:   "displayed in a modern phone accessory boutique",
+    pharmacie:   "on a clean pharmacy shelf",
+    garage:      "in a professional automotive workshop"
+  };
+  const metierCtx = ctx[profile.metier] || "in west africa, warm authentic atmosphere";
+  return `${product.nom}, ${metierCtx}`;
+}
+
+function selectedAffProduct(){ return __aff.products[__aff.productIdx] || null; }
+
+function renderAfficheSheet(){
   const sheet = $("#sheet");
-  const tplList = AFFICHE_TEMPLATES.map(t=>`
-    <button class="aff-tpl ${__aff.tpl===t.id?'on':''}" data-t="${t.id}">
-      <div class="aff-tpl-name">${escapeHtml(t.label)}</div>
-      <div class="aff-tpl-hint">${escapeHtml(t.hint)}</div>
-    </button>`).join("");
+  const p = cur();
+  const prod = selectedAffProduct();
+  const productsChips = __aff.products.slice(0, 12).map((r,i)=>
+    `<button class="chip ${i===__aff.productIdx?'on':''}" data-i="${i}">${escapeHtml(r.nom)}</button>`
+  ).join("");
+  const styleChips = AFF_STYLES.map(s=>
+    `<button class="aff-style ${__aff.style===s.id?'on':''}" data-s="${s.id}">
+       <div class="aff-style-l">${s.label}</div>
+       <div class="aff-style-h">${escapeHtml(s.hint)}</div>
+     </button>`
+  ).join("");
+  const previewHtml = __aff.baseImage
+    ? `<div class="aff-prev"><img src="${safeImgUrl(__aff.baseImage)}" alt="Affiche"><div class="aff-prev-overlay">
+        <div class="aff-prev-title">${escapeHtml((prod?.nom||"").toUpperCase())}</div>
+        ${prod?.prix?`<div class="aff-prev-price">${new Intl.NumberFormat('fr-FR').format(prod.prix)} F</div>`:""}
+        <div class="aff-prev-meta">${escapeHtml(p.name||"")}${p.identite?.tel?" · "+escapeHtml(p.identite.tel):""}</div>
+       </div></div>`
+    : __aff.generating
+      ? `<div class="aff-empty"><div class="aff-spinner">⏳</div><div>Génération en cours…<br><small>~5 à 15 secondes</small></div></div>`
+      : `<div class="aff-empty"><div style="font-size:64px">✨</div><div>Décris ton affiche puis appuie sur <b>Générer</b></div></div>`;
+  const shareBtns = __aff.baseImage ? AFF_FORMATS.map(f=>
+    `<button class="plus-item" data-fmt="${f.id}"><b>${f.label}</b><br><small style="color:var(--cream-dim)">${f.w}×${f.h} · ${f.note}</small></button>`
+  ).join("") : "";
   sheet.innerHTML = `
-    <div class="sheet-head"><h3>Créer une affiche</h3><button class="x" id="sheet-close">×</button></div>
-    <div class="aff-editor">
-      <div class="aff-preview-wrap"><div class="aff-preview" id="aff-preview"></div></div>
-      <div class="aff-controls">
-        <div class="pf-lbl">Gabarit</div>
-        <div class="aff-tpls">${tplList}</div>
+    <div class="sheet-head"><h3>✨ Créer une affiche (IA)</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">L'IA génère une image unique de ton produit. Le prix et le nom de ton business sont ajoutés automatiquement.</div>
 
-        <div class="pf-lbl">Titre / Nom principal</div>
-        <input class="field" id="aff-title" value="${escapeAttr(__aff.title)}" maxlength="60">
-        <div class="pf-lbl">Sous-titre / Nom entreprise</div>
-        <input class="field" id="aff-sub" value="${escapeAttr(__aff.subtitle)}" maxlength="40">
+    ${__aff.products.length?`<div class="pf-lbl">Ton produit</div><div class="chips" id="aff-prods">${productsChips}</div>`:`<div class="ps-note" style="color:#f96">⚠️ Ajoute d'abord un produit dans Boutique.</div>`}
 
-        <div class="pf-row">
-          <div><div class="pf-lbl">Prix (FCFA)</div>
-            <input class="field" id="aff-price" type="number" value="${Number(__aff.price)||0}"></div>
-          <div><div class="pf-lbl">Prix barré (promo)</div>
-            <input class="field" id="aff-priceold" type="number" value="${Number(__aff.priceOld)||0}"></div>
-        </div>
+    <div class="pf-lbl">Décris ce que l'IA doit dessiner</div>
+    <textarea class="field" id="aff-prompt" rows="3" style="resize:vertical;font-family:inherit;font-size:14px">${escapeHtml(__aff.prompt)}</textarea>
+    <div style="color:var(--cream-dim);font-size:11.5px;margin:4px 0 8px">💡 Exemple : « poulet braisé fumant, sauce piment à côté, ambiance maquis ivoirien le soir »</div>
 
-        <div class="pf-row">
-          <div><div class="pf-lbl">Badge promo</div>
-            <input class="field" id="aff-promolabel" value="${escapeAttr(__aff.promoLabel)}" maxlength="10"></div>
-          <div><div class="pf-lbl">Jusqu'au</div>
-            <input class="field" id="aff-promountil" value="${escapeAttr(__aff.promoUntil)}" maxlength="30" placeholder="ex : dimanche 20h"></div>
-        </div>
+    <div class="pf-lbl">Style visuel</div>
+    <div class="aff-styles" id="aff-styles">${styleChips}</div>
 
-        <div class="pf-lbl">Horaires (menu)</div>
-        <input class="field" id="aff-hours" value="${escapeAttr(__aff.hours)}" maxlength="40" placeholder="ex : 11h → 23h · 7/7">
+    <button class="sheet-add" id="aff-gen" ${__aff.generating||!__aff.products.length?'disabled':''}>${__aff.generating?"⏳ Génération…":(__aff.baseImage?"🔄 Régénérer une autre image":"✨ Générer mon affiche")}</button>
+    ${__aff.error?`<div class="ps-note" style="color:#f96">${escapeHtml(__aff.error)}</div>`:""}
 
-        <div class="pf-lbl">Téléphone</div>
-        <input class="field" id="aff-phone" value="${escapeAttr(__aff.phone)}" maxlength="40">
-        <div class="pf-lbl">Adresse</div>
-        <input class="field" id="aff-addr" value="${escapeAttr(__aff.address)}" maxlength="120">
+    <div class="pf-lbl">Aperçu</div>
+    <div class="aff-preview-box">${previewHtml}</div>
 
-        <div class="pf-lbl">Photo du produit</div>
-        <div class="aff-photo-actions">
-          <label class="btn-mini">📷 Envoyer<input type="file" id="aff-photo" accept="image/*" hidden></label>
-          <button class="btn-mini" id="aff-ai">✨ Générer par IA</button>
-          ${__aff.photo?`<button class="btn-mini danger" id="aff-photo-clear">✕ Retirer</button>`:""}
-        </div>
-        <div id="aff-ai-status" class="ps-note"></div>
-
-        <div class="pf-lbl">Logo</div>
-        <div class="aff-photo-actions">
-          <label class="btn-mini">📷 Envoyer un logo<input type="file" id="aff-logo" accept="image/*" hidden></label>
-          ${__aff.logo?`<button class="btn-mini danger" id="aff-logo-clear">✕ Retirer</button>`:""}
-        </div>
-
-        <div class="aff-actions">
-          <button class="sheet-add" id="aff-download">📥 Télécharger PNG</button>
-          <button class="plus-item" id="aff-share">📱 Partager (WhatsApp)</button>
-          <button class="plus-item" id="aff-print">🖨️ Imprimer</button>
-        </div>
-      </div>
-    </div>`;
-  renderIcons(sheet);
+    ${__aff.baseImage?`
+      <div class="pf-lbl" style="margin-top:14px">Partager en 1 clic (choisis le format)</div>
+      <div class="aff-share-grid">${shareBtns}</div>
+    `:""}
+  `;
   $("#sheet-close").onclick = closeSheet;
+  sheet.querySelectorAll("#aff-prods .chip").forEach(b=>b.onclick=()=>{
+    __aff.productIdx = +b.dataset.i;
+    __aff.prompt = buildDefaultAffichePrompt(selectedAffProduct(), p);
+    renderAfficheSheet();
+  });
+  sheet.querySelectorAll("#aff-styles .aff-style").forEach(b=>b.onclick=()=>{
+    __aff.style = b.dataset.s; renderAfficheSheet();
+  });
+  const pTa = $("#aff-prompt");
+  if(pTa) pTa.oninput = ()=>{ __aff.prompt = pTa.value.slice(0, 500); };
+  const gen = $("#aff-gen");
+  if(gen && !gen.disabled) gen.onclick = generateAffiche;
+  sheet.querySelectorAll(".aff-share-grid button").forEach(b=>b.onclick = ()=>shareAffiche(b.dataset.fmt));
 
-  sheet.querySelectorAll(".aff-tpl").forEach(b=>b.onclick = ()=>{ __aff.tpl = b.dataset.t; renderAfficheEditor(); });
-  const bind = (id, key, num)=>{ const el=$("#"+id); if(!el) return; el.oninput = ()=>{ __aff[key] = num?parseFloat(el.value)||0:el.value; updatePreview(); }; };
-  bind("aff-title","title");
-  bind("aff-sub","subtitle");
-  bind("aff-price","price", true);
-  bind("aff-priceold","priceOld", true);
-  bind("aff-promolabel","promoLabel");
-  bind("aff-promountil","promoUntil");
-  bind("aff-hours","hours");
-  bind("aff-phone","phone");
-  bind("aff-addr","address");
-
-  const readAsDataURL = f => new Promise((r,rj)=>{ const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.onerror=rj; rd.readAsDataURL(f); });
-
-  const photoInp = $("#aff-photo");
-  if(photoInp) photoInp.onchange = async e=>{
-    const f = e.target.files?.[0]; if(!f) return;
-    if(f.size > 4*1024*1024){ alert("Image trop lourde (max 4 Mo)."); return; }
-    try { __aff.photo = await readAsDataURL(f); renderAfficheEditor(); } catch(_){ alert("Impossible de lire cette image."); }
-  };
-  const photoClear = $("#aff-photo-clear");
-  if(photoClear) photoClear.onclick = ()=>{ __aff.photo = null; renderAfficheEditor(); };
-
-  const logoInp = $("#aff-logo");
-  if(logoInp) logoInp.onchange = async e=>{
-    const f = e.target.files?.[0]; if(!f) return;
-    if(f.size > 2*1024*1024){ alert("Logo trop lourd (max 2 Mo)."); return; }
-    try {
-      const url = await readAsDataURL(f);
-      __aff.logo = url;
-      // Sauvegarde dans le profil pour réutilisation
-      const p = cur(); if(!p.identite) p.identite = {}; p.identite.logo = url; await persist();
-      renderAfficheEditor();
-    } catch(_){ alert("Impossible de lire ce logo."); }
-  };
-  const logoClear = $("#aff-logo-clear");
-  if(logoClear) logoClear.onclick = ()=>{ __aff.logo = null; renderAfficheEditor(); };
-
-  $("#aff-ai").onclick = () => generateAffichePhoto();
-  $("#aff-download").onclick = () => afficheDownload();
-  $("#aff-share").onclick    = () => afficheShare();
-  $("#aff-print").onclick    = () => affichePrint();
-
-  updatePreview();
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 
-function currentAfficheSVG(){
-  const t = AFFICHE_TEMPLATES.find(x=>x.id===__aff.tpl) || AFFICHE_TEMPLATES[0];
-  return t.fn(__aff);
-}
-function updatePreview(){
-  const box = $("#aff-preview"); if(!box) return;
-  box.innerHTML = currentAfficheSVG();
-}
-
-async function generateAffichePhoto(){
-  const st = $("#aff-ai-status"); if(st) st.textContent = "Génération IA en cours (~10 s)…";
+async function generateAffiche(){
+  if(!__aff.prompt.trim()){ __aff.error = "Décris d'abord ce que tu veux voir."; renderAfficheSheet(); return; }
+  __aff.generating = true; __aff.error = null; renderAfficheSheet();
   try {
-    const kw = __aff.title || "produit";
-    const prompt = `professional product photography of ${kw}, west african market style, studio lighting, clean background, high quality, no text`;
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=800&nologo=true&safe=true&seed=${Math.floor(Math.random()*1e6)}`;
+    const style = AFF_STYLES.find(s=>s.id===__aff.style) || AFF_STYLES[0];
+    const finalPrompt = `${__aff.prompt.trim()}, ${style.prompt}, no text, no watermark, no letters, no logos`;
+    const seed = Math.floor(Math.random()*1e6);
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&nologo=true&safe=true&seed=${seed}`;
     const resp = await fetch(url);
-    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    if(!resp.ok) throw new Error("Serveur IA indisponible (HTTP "+resp.status+")");
     const blob = await resp.blob();
-    const dataUrl = await new Promise((r,rj)=>{ const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.onerror=rj; rd.readAsDataURL(blob); });
-    __aff.photo = dataUrl;
-    if(st) st.textContent = "Image générée ✅";
-    renderAfficheEditor();
+    __aff.baseImage = await blobToDataURL(blob);
   } catch(e){
-    if(st) st.textContent = "Échec de la génération : "+(e.message||"réseau");
+    __aff.error = "Impossible de générer : "+(e.message||"réseau lent");
+  } finally {
+    __aff.generating = false; renderAfficheSheet();
   }
 }
 
-/* SVG → PNG blob à 1080×1350 */
-async function afficheToPngBlob(){
-  const svg = currentAfficheSVG();
-  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
-  try {
-    return await new Promise((resolve, reject)=>{
-      const img = new Image();
-      img.onload = () => {
-        const cv = document.createElement("canvas");
-        cv.width = 1080; cv.height = 1350;
-        const ctx = cv.getContext("2d");
-        ctx.fillStyle = "#0E0E0F"; ctx.fillRect(0,0,cv.width,cv.height);
-        ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(b => b ? resolve(b) : reject(new Error("toBlob a échoué")), "image/png", 0.95);
-      };
-      img.onerror = () => reject(new Error("SVG illisible en image"));
-      img.src = url;
-    });
-  } finally { URL.revokeObjectURL(url); }
+function blobToDataURL(blob){
+  return new Promise((res, rej)=>{ const rd=new FileReader(); rd.onload=()=>res(rd.result); rd.onerror=()=>rej(new Error("Lecture image impossible")); rd.readAsDataURL(blob); });
 }
 
-function affNameBase(){
-  const t = (__aff.title || "affiche").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
-  const d = new Date(); const pad = n=>String(n).padStart(2,"0");
-  return `boss-${t}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.png`;
+/* Compose l'image finale (base IA + overlay texte) au format demandé */
+async function composeAffiche(format){
+  const f = AFF_FORMATS.find(x=>x.id===format) || AFF_FORMATS[0];
+  const W = f.w, H = f.h;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  await new Promise((res, rej)=>{ img.onload=res; img.onerror=()=>rej(new Error("Image IA non lisible")); img.src = __aff.baseImage; });
+
+  // Fond noir + fit cover
+  ctx.fillStyle = "#0E0E0F"; ctx.fillRect(0,0,W,H);
+  const scale = Math.max(W/img.width, H/img.height);
+  const iw = img.width*scale, ih = img.height*scale;
+  ctx.drawImage(img, (W-iw)/2, (H-ih)/2, iw, ih);
+
+  // Zone texte : bas 40% pour carré/A4, bas 35% pour story
+  const zoneH = format==="story" ? H*0.42 : H*0.4;
+  const zoneY = H - zoneH;
+  const g = ctx.createLinearGradient(0, zoneY, 0, H);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(0.35, "rgba(0,0,0,0.75)");
+  g.addColorStop(1, "rgba(0,0,0,0.95)");
+  ctx.fillStyle = g; ctx.fillRect(0, zoneY, W, zoneH);
+
+  const p = cur();
+  const prod = selectedAffProduct();
+  const pad = W*0.06;
+
+  // Titre produit
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#fff";
+  const titleSize = Math.round(W * (format==="story"?0.075:0.09));
+  ctx.font = `900 ${titleSize}px 'Archivo', Impact, sans-serif`;
+  const titleText = (prod?.nom || "Nouveauté").toUpperCase();
+  wrapCanvasText(ctx, titleText, W/2, H - zoneH + zoneH*0.30, W - 2*pad, titleSize*1.1);
+
+  // Prix — géant, or
+  if(prod?.prix){
+    ctx.fillStyle = "#C8A23A";
+    const priceSize = Math.round(W * (format==="story"?0.13:0.15));
+    ctx.font = `900 ${priceSize}px 'Archivo', Impact, sans-serif`;
+    ctx.fillText(new Intl.NumberFormat('fr-FR').format(prod.prix)+" F", W/2, H - zoneH*0.32);
+  }
+
+  // Business + tel
+  ctx.fillStyle = "#ececee";
+  const metaSize = Math.round(W * 0.028);
+  ctx.font = `600 ${metaSize}px 'Inter', sans-serif`;
+  const meta = [p.name, p.identite?.tel].filter(Boolean).join("   ·   ");
+  ctx.fillText(meta, W/2, H - zoneH*0.09);
+
+  // Adresse si présente et A4
+  if(format==="a4" && p.identite?.adresse){
+    ctx.fillStyle = "#c8a23a";
+    const addrSize = Math.round(W * 0.022);
+    ctx.font = `500 ${addrSize}px 'Inter', sans-serif`;
+    ctx.fillText("📍 "+p.identite.adresse, W/2, H - zoneH*0.03);
+  }
+
+  return await new Promise(res => canvas.toBlob(b => res(b), "image/jpeg", 0.92));
 }
 
-async function afficheDownload(){
-  try {
-    const blob = await afficheToPngBlob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = affNameBase(); a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 1000);
-  } catch(e){ alert("Échec du téléchargement : "+(e.message||"")); }
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight){
+  const words = String(text).split(" ");
+  const lines = [];
+  let line = "";
+  for(const w of words){
+    const test = line ? line+" "+w : w;
+    if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = w; }
+    else line = test;
+  }
+  if(line) lines.push(line);
+  const totalH = lines.length * lineHeight;
+  lines.forEach((l, i) => ctx.fillText(l, x, y - totalH/2 + i*lineHeight + lineHeight/2));
 }
 
-async function afficheShare(){
+async function shareAffiche(format){
+  const btn = document.querySelector(`.aff-share-grid button[data-fmt="${format}"]`);
+  const oldHtml = btn?.innerHTML;
+  if(btn){ btn.disabled = true; btn.innerHTML = "⏳ Préparation…"; }
   try {
-    const blob = await afficheToPngBlob();
-    const file = new File([blob], affNameBase(), { type:"image/png" });
-    const shareData = {
-      files: [file],
-      title: __aff.title || "Affiche BOSS",
-      text: `${__aff.title || ""} — ${affPrice(__aff.price)}${__aff.phone?"\n📞 "+__aff.phone:""}`
-    };
-    if(navigator.canShare && navigator.canShare(shareData) && navigator.share){
-      await navigator.share(shareData);
-    } else {
-      // Repli : ouvre WhatsApp avec juste le texte (sans image)
-      const txt = `*${__aff.title||""}*\n${affPrice(__aff.price)}${__aff.phone?"\n📞 "+__aff.phone:""}${__aff.address?"\n📍 "+__aff.address:""}\n\nTélécharge l'affiche puis envoie-la 👇`;
-      window.open("https://wa.me/?text="+encodeURIComponent(txt), "_blank");
-      // + télécharge l'image
-      afficheDownload();
+    const blob = await composeAffiche(format);
+    const p = cur();
+    const prod = selectedAffProduct();
+    const baseName = (prod?.nom||"affiche").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+    const suf = format==="story"?"vertical":format;
+    const filename = `boss-${baseName}-${suf}.jpg`;
+    const file = new File([blob], filename, {type:"image/jpeg"});
+
+    if(format==="a4"){
+      // Impression : ouvre nouvelle fenêtre avec l'image en A4 portrait
+      const url = URL.createObjectURL(blob);
+      const w = window.open("", "_blank");
+      if(!w){ alert("Autorise les popups pour imprimer."); return; }
+      w.document.write(`<!doctype html><html><head><title>Affiche</title><style>@page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#000}img{width:100%;height:100vh;object-fit:contain;display:block}</style></head><body onload="setTimeout(()=>{window.print();setTimeout(()=>window.close(),400);},300)"><img src="${url}"></body></html>`);
+      w.document.close();
+      return;
     }
-  } catch(e){ alert("Partage indisponible : "+(e.message||"")); }
+
+    const shareText = format==="whatsapp"
+      ? `🎁 *${prod?.nom||"Nouveauté"}*${prod?.prix?` — seulement ${new Intl.NumberFormat('fr-FR').format(prod.prix)} F CFA`:''} !\n${p.identite?.tel?`📞 ${p.identite.tel}\n`:''}${p.identite?.adresse?`📍 ${p.identite.adresse}\n`:''}—\n${p.name||''}`
+      : `${prod?.nom||''}${prod?.prix?` — ${new Intl.NumberFormat('fr-FR').format(prod.prix)} F`:''}`;
+
+    if(navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
+      try {
+        await navigator.share({files:[file], text: shareText, title: prod?.nom||"Affiche"});
+        return;
+      } catch(e){ if(e.name==="AbortError") return; }
+    }
+    // Repli : télécharge + ouvre WhatsApp avec texte
+    const dl = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = dl; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(dl), 1500);
+    if(format==="whatsapp"){
+      setTimeout(()=>window.open("https://wa.me/?text="+encodeURIComponent(shareText+"\n\n(Image téléchargée : envoie-la ensuite dans la conversation 👇)"), "_blank"), 500);
+    }
+  } catch(e){
+    alert("Erreur : "+(e.message||"partage impossible"));
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = oldHtml; }
+  }
 }
 
-function affichePrint(){
-  const svg = currentAfficheSVG();
-  const w = window.open("", "_blank");
-  if(!w){ alert("Autorise les popups pour imprimer."); return; }
-  w.document.write(`<!doctype html><html><head><title>Affiche BOSS</title>
-    <style>@page{size:A4 portrait;margin:12mm}html,body{margin:0;padding:0;background:#0E0E0F}
-    .p{width:100%;max-width:186mm;margin:0 auto}.p svg{width:100%;height:auto;display:block}</style>
-    </head><body onload="window.print();setTimeout(()=>window.close(),300)">
-    <div class="p">${svg}</div></body></html>`);
-  w.document.close();
-}
 
 /* ---------- utils ---------- */
 function escapeHtml(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}

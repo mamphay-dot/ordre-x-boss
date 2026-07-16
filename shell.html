@@ -334,6 +334,26 @@
   .btn-mini.danger{color:#f96;border-color:#a34}
   .aff-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .cat-p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0}
+  /* Affiche IA — refonte 2026 */
+  .aff-styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:6px 0 10px}
+  .aff-style{background:var(--char);border:1.5px solid var(--line);border-radius:12px;padding:10px 8px;cursor:pointer;font-family:inherit;text-align:center;transition:border-color .15s}
+  .aff-style:hover{border-color:var(--gold)}
+  .aff-style.on{border-color:var(--gold);background:linear-gradient(135deg,#241f10 0%,#1a1608 100%)}
+  .aff-style-l{font-weight:700;font-size:13.5px;color:var(--cream)}
+  .aff-style-h{font-size:11px;color:var(--cream-dim);margin-top:2px}
+  .aff-preview-box{background:#000;border:1.5px solid var(--line);border-radius:14px;overflow:hidden;aspect-ratio:1/1;margin:8px 0 4px;position:relative}
+  .aff-prev{position:relative;width:100%;height:100%}
+  .aff-prev img{width:100%;height:100%;object-fit:cover;display:block}
+  .aff-prev-overlay{position:absolute;left:0;right:0;bottom:0;padding:20px 16px 14px;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.55) 30%,rgba(0,0,0,.92) 100%);text-align:center}
+  .aff-prev-title{font-family:'Archivo';font-weight:900;color:#fff;font-size:22px;text-transform:uppercase;line-height:1.1;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+  .aff-prev-price{font-family:'Archivo';font-weight:900;color:var(--gold);font-size:36px;margin:4px 0 2px;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+  .aff-prev-meta{color:#eee;font-size:12px;font-weight:600;margin-top:2px}
+  .aff-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--cream-dim);text-align:center;padding:20px;gap:10px;font-size:14px}
+  .aff-spinner{font-size:56px;animation:aff-spin 1.6s linear infinite}
+  @keyframes aff-spin{100%{transform:rotate(360deg)}}
+  .aff-share-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:6px}
+  .aff-share-grid button{text-align:left;line-height:1.35}
+  @media(min-width:640px){.aff-share-grid{grid-template-columns:1fr 1fr}}
   /* ===== MODE FACILE ===== */
   body.easy .topbar,body.easy .tabs,body.easy .tabbar,body.easy #save-warn,body.easy .install-banner,body.easy .sidebar,body.easy nav.nav,body.easy .install-hint{display:none!important}
   body.easy .app{padding-bottom:24px}
