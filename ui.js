@@ -223,6 +223,40 @@ const cur=()=>state.profiles[state.currentId];
 function flashSaveWarning(){ try{ const n=$("#save-warn"); if(n){ n.style.display="block"; setTimeout(()=>n.style.display="none",4000);} }catch(e){} }
 
 /* ---------- Navigation ---------- */
+const NavHistory = {
+  stack: [], index: -1, isNavigating: false,
+  push(v){
+    if(this.isNavigating) return;
+    if(this.stack[this.index] === v) return;
+    this.stack = this.stack.slice(0, this.index + 1);
+    this.stack.push(v);
+    if(this.stack.length > 30) this.stack.shift();
+    else this.index++;
+    this.updateButtons();
+  },
+  back(){
+    if(this.index <= 0) return;
+    this.isNavigating = true;
+    this.index--;
+    showView(this.stack[this.index]);
+    this.isNavigating = false;
+    this.updateButtons();
+  },
+  forward(){
+    if(this.index >= this.stack.length - 1) return;
+    this.isNavigating = true;
+    this.index++;
+    showView(this.stack[this.index]);
+    this.isNavigating = false;
+    this.updateButtons();
+  },
+  updateButtons(){
+    const b = $("#nav-back"), f = $("#nav-forward");
+    if(b) b.disabled = this.index <= 0;
+    if(f) f.disabled = this.index >= this.stack.length - 1;
+  }
+};
+
 function showView(v){
   $$(".view").forEach(x=>x.classList.remove("on"));
   $("#view-"+v).classList.add("on");
@@ -239,6 +273,7 @@ function showView(v){
   if(v==="tresorerie") renderTreso();
   if(v==="historique") renderHistorique();
   if(v==="dash") renderDash();
+  NavHistory.push(v);
   enforceLicense();
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -4782,6 +4817,8 @@ function wire(){
     }
   }
   const tgl=$("#theme-toggle"); if(tgl) tgl.onclick=toggleMode;
+  const nb=$("#nav-back"); if(nb) nb.onclick=()=>NavHistory.back();
+  const nf=$("#nav-forward"); if(nf) nf.onclick=()=>NavHistory.forward();
   const lu=$("#lock-unlock"); if(lu) lu.onclick=async()=>{ const okc=await applyUnlock($("#lock-code").value,$("#lock-err")); if(okc){ $("#lock-screen").style.display="none"; refreshAll(); enforceLicense(); } };
   const la=$("#lock-admin"); if(la) la.onclick=openAdmin;
   const cb=$("#cloud-badge"); if(cb) cb.onclick=openCloudSheet;
