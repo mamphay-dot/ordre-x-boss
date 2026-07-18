@@ -56,6 +56,7 @@ const SAFE = [
   "icon-192.png",
   "icon-512.png",
   "icon-maskable-512.png",
+  "privacy.html",
   ".htaccess",
   "CNAME",
 ];
@@ -64,6 +65,15 @@ fs.writeFileSync("docs/index.html", html);
 for (const f of SAFE) {
   const src = path.join("pwa", f);
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join("docs", f));
+}
+// Copie récursive du dossier .well-known (assetlinks.json) — nécessaire pour TWA
+const wellKnownSrc = path.join("pwa", ".well-known");
+if (fs.existsSync(wellKnownSrc)) {
+  const wellKnownDst = path.join("docs", ".well-known");
+  fs.mkdirSync(wellKnownDst, { recursive: true });
+  for (const f of fs.readdirSync(wellKnownSrc)) {
+    fs.copyFileSync(path.join(wellKnownSrc, f), path.join(wellKnownDst, f));
+  }
 }
 
 console.log("Build OK :", (html.length / 1024).toFixed(1) + " Ko");
