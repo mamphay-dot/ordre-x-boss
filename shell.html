@@ -92,7 +92,7 @@
   .vsub{color:var(--cream-dim);font-size:13px;margin-bottom:15px}
 
   /* ---- ONBOARDING CHAT ---- */
-  .chatwrap{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--black);display:flex;flex-direction:column;height:calc(100vh - var(--nav-h) - 200px);min-height:380px}
+  .chatwrap{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--black);display:flex;flex-direction:column;height:calc(100dvh - var(--nav-h) - 200px);min-height:380px;max-height:720px}
   .chatbar{background:var(--wa);padding:11px 14px;display:flex;align-items:center;gap:10px;flex:0 0 auto}
   .chatbar .av{width:32px;height:32px;border-radius:50%;background:var(--gold);color:var(--on-accent);font-family:'Archivo';font-weight:900;display:flex;align-items:center;justify-content:center;font-size:16px}
   .chatbar .nm{font-weight:700;color:#fff;font-size:14px;line-height:1.1}
@@ -355,7 +355,7 @@
   .aff-share-grid button{text-align:left;line-height:1.35}
   @media(min-width:640px){.aff-share-grid{grid-template-columns:1fr 1fr}}
   /* ===== MODE FACILE ===== */
-  body.easy .topbar,body.easy .tabs,body.easy .tabbar,body.easy #save-warn,body.easy .install-banner,body.easy .sidebar,body.easy nav.nav,body.easy .install-hint{display:none!important}
+  body.easy .topbar,body.easy .tabs,body.easy .tabbar,body.easy #save-warn,body.easy .install-hint,body.easy .sidebar,body.easy nav.nav,body.easy .install-hint{display:none!important}
   body.easy .app{padding-bottom:24px}
   body.easy #view-easy.on{display:block}
   .easy-wrap{max-width:520px;margin:0 auto;padding:18px 16px 100px;text-align:center}
@@ -749,21 +749,91 @@
   .tab{flex:1;background:none;border:none;color:var(--cream-dim);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:'Inter';font-size:9.5px;font-weight:600;padding:0 1px}
   .tab .ti{font-size:19px;line-height:1}
 
-  /* ====== ECRAN LARGE / FOLD DÉPLIÉ ====== */
-  @media (min-width:760px){
+  /* ========================================
+     RESPONSIVE SYSTEM — refonte 2026 (Fold plié 280 → iPad Pro 1440+)
+     ======================================== */
+
+  /* XS : ULTRA-NARROW (Samsung Fold plié 280-399) */
+  @media (max-width:399px){
+    .app{padding-bottom:calc(var(--nav-h) + 8px)}
+    .view{padding:12px 10px}
+    .topbar{padding:9px 11px;gap:7px}
+    .blogo{font-size:20px}
+    .profbtn{max-width:44%;padding:5px 8px;gap:6px}
+    .profbtn .pn{font-size:12px}
+    .profbtn .pm{font-size:10px}
+    .profbtn .pi{max-width:100%;overflow:hidden}
+    h2.vt{font-size:18px}
+    .vsub{font-size:12px;margin-bottom:12px}
+    .chip{padding:8px 10px;font-size:12.5px}
+    .install-hint{padding:9px 10px;font-size:12px;gap:6px}
+    .install-hint > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:calc(100vw - 90px)}
+    .nav{height:54px}
+    .tab{font-size:9px;padding:0}
+    .tab .ti{font-size:17px}
+    .sheet{padding:14px 12px calc(18px + env(safe-area-inset-bottom))}
+    .sheet-head h3{font-size:15px}
+    .field,.plus-item,.sheet-add{font-size:14px}
+    .easy-brand{font-size:22px}
+    .easy-money-big{font-size:34px}
+    .easy-btn{padding:16px 8px 12px;min-height:120px;border-radius:16px}
+    .easy-btn-emoji{font-size:34px}
+    .easy-btn-txt{font-size:14px}
+    .easy-grid{gap:10px}
+    /* Sur ultra-narrow, cacher le libellé texte (font-size:0) et garder l'icône SVG */
+    .cloud-badge{font-size:0!important;padding:6px 8px;min-width:34px;justify-content:center}
+    .cloud-badge > .ic{width:16px;height:16px}
+    #theme-toggle{padding:4px 6px}
+  }
+
+  /* SM : MOBILE STANDARD (400-639) — layout par défaut */
+
+  /* MD : GRAND MOBILE / FOLD OUVERT / TABLETTE PORTRAIT (640-799) */
+  @media (min-width:640px){
+    .app{max-width:640px;padding-left:20px;padding-right:20px}
+    .topbar{margin:0 -20px;padding-left:20px;padding-right:20px}
+    .sheet{max-width:560px}
+    .install-hint{padding-left:20px;padding-right:20px}
+    .install-hint{padding-left:20px;padding-right:20px}
+  }
+
+  /* LG : SIDEBAR (800-1023) — iPad portrait, Fold déplié large, laptop */
+  @media (min-width:800px){
     .sidebar{display:flex}
     .nav{display:none}
-    .app{max-width:920px;padding-left:230px;padding-bottom:30px}
-    .topbar{padding-left:24px;padding-right:24px}
-    .view{padding:22px 24px}
+    .app{max-width:100%;padding-left:250px;padding-right:28px;padding-bottom:36px;margin:0}
+    .topbar{margin:0;padding-left:28px;padding-right:28px}
+    .view{padding:24px 28px}
+    .v-grid{grid-template-columns:1fr 1fr}
+    .stats{gap:12px}
+    .install-hint{padding-left:270px;padding-right:28px}
+    .install-hint{padding-left:250px;padding-right:28px}
+    .sheet{left:calc(230px + 50%);transform:translateX(calc(-50% - 115px)) translateY(100%);max-width:640px}
+    .sheet.on{transform:translateX(calc(-50% - 115px)) translateY(0)}
+  }
+
+  /* XL : DESKTOP / iPad Pro (1024-1439) */
+  @media (min-width:1024px){
+    .app{padding-left:250px;padding-right:40px}
+    .view{padding:28px 40px;max-width:1200px;margin:0}
     .v-grid{grid-template-columns:1fr 1fr 1fr}
-    .stats{gap:11px}
-    .install-hint{padding-left:246px}
+    .install-hint{padding-left:270px;padding-right:40px}
+    .sheet{max-width:720px}
   }
-  @media (min-width:1040px){
-    .app{max-width:1040px}
+
+  /* XXL : ULTRA-LARGE (1440+) — grands écrans desktop */
+  @media (min-width:1440px){
+    .app{padding-left:280px;padding-right:64px}
+    .view{max-width:1400px;padding:32px 48px}
     .v-grid{grid-template-columns:1fr 1fr 1fr 1fr}
+    .install-hint{padding-left:300px;padding-right:64px}
   }
+
+  /* Sidebar : ne pas dépasser la sidebar sur écrans hauts */
+  @media (min-width:800px){
+    .sidebar{width:230px;padding:20px 14px;overflow-y:auto}
+  }
+
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   .tab.on{color:var(--gold)}
 
