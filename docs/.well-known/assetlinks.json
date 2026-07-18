@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "boss.ordrex",
+    "sha256_cert_fingerprints": [
+      "25:08:48:F7:C1:B2:EB:7D:1B:AF:C7:61:C4:68:15:9E:45:D5:8B:D7:5E:5A:59:C1:D9:3E:22:94:8D:F3:7C:36"
+    ]
+  }
+}]
