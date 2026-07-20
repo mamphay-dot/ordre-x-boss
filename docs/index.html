@@ -341,6 +341,52 @@
   .btn-mini.danger{color:#f96;border-color:#a34}
   .aff-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .cat-p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0}
+  /* Business Model Canvas — coach stratégie */
+  .bmc-intro-cards{display:flex;flex-direction:column;gap:10px;margin:14px 0 4px}
+  .bmc-intro-c{display:flex;gap:12px;align-items:center;background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .bmc-intro-n{background:var(--gold);color:var(--on-accent);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Archivo';font-weight:900;font-size:16px;flex-shrink:0}
+  .bmc-intro-c b{font-size:14px;color:var(--cream)}
+  .bmc-intro-c span{color:var(--cream-dim);font-size:12.5px}
+  .bmc-progress{display:flex;gap:5px;margin:4px 0 12px}
+  .bmc-dot{flex:1;height:5px;border-radius:3px;background:var(--char2);border:1px solid var(--line);transition:background .2s}
+  .bmc-dot.on{background:var(--gold);border-color:var(--gold)}
+  .bmc-dot.cur{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,162,58,.2)}
+  .bmc-examples{background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:1px solid var(--gold);border-radius:12px;padding:12px;margin-top:10px}
+  .bmc-ex-title{font-size:12.5px;color:var(--gold);font-weight:700;margin-bottom:8px}
+  .bmc-ex-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .bmc-ex{background:var(--char);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+  .bmc-ex:hover{border-color:var(--gold);color:var(--gold)}
+  .bmc-nav{display:flex;gap:8px;margin-top:14px}
+  .bmc-nav > *{flex:1}
+  .bmc-actions-box{background:linear-gradient(135deg,#152820 0%,#0f1a15 100%);border:2px solid #3a7d4f;border-radius:14px;padding:14px;margin:12px 0}
+  .bmc-actions-title{font-family:'Archivo';font-weight:800;font-size:14px;color:#7dd095;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
+  .bmc-action{display:flex;gap:10px;align-items:flex-start;background:var(--char);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:8px;cursor:pointer}
+  .bmc-action:last-child{margin-bottom:0}
+  .bmc-action input[type=checkbox]{width:20px;height:20px;accent-color:#7dd095;margin-top:2px;flex-shrink:0}
+  .bmc-action-t{flex:1;font-size:13.5px;line-height:1.4;color:var(--cream)}
+  .bmc-action.done .bmc-action-t{text-decoration:line-through;color:var(--cream-dim)}
+  .bmc-fold{cursor:pointer;padding:12px;background:var(--char2);border:1px solid var(--line);border-radius:10px;font-weight:700;font-size:14px;color:var(--cream);list-style:none}
+  .bmc-fold::-webkit-details-marker{display:none}
+  .bmc-fold::before{content:"▸ ";color:var(--gold);display:inline-block;transition:transform .2s}
+  details[open] > .bmc-fold::before{transform:rotate(90deg)}
+  .bmc-strategy{background:var(--char);border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;padding:14px;font-size:14px;line-height:1.55;color:var(--cream)}
+  .bmc-str-h{font-family:'Archivo';font-weight:800;font-size:15px;margin:12px 0 4px}
+  .bmc-str-h:first-child{margin-top:0}
+  .bmc-canvas{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--char);border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;padding:10px}
+  @media(min-width:640px){.bmc-canvas{grid-template-columns:repeat(3,1fr)}}
+  .bmc-cell{background:var(--char2);border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;transition:border-color .15s}
+  .bmc-cell:hover{border-color:var(--gold)}
+  .bmc-cell-h{font-family:'Archivo';font-weight:700;font-size:12px;color:var(--gold);margin-bottom:5px;line-height:1.2}
+  .bmc-cell-t{font-size:12.5px;color:var(--cream);line-height:1.35}
+  .bmc-btns{display:flex;gap:8px;margin-top:12px}
+  .bmc-btns > *{flex:1}
+  /* Coach card sur dashboard */
+  .bmc-coach-card{background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:2px solid var(--gold);border-radius:14px;padding:14px;margin:12px 0;cursor:pointer;display:flex;align-items:center;gap:12px}
+  .bmc-coach-card:hover{transform:scale(1.01)}
+  .bmc-coach-emoji{font-size:32px;flex-shrink:0}
+  .bmc-coach-txt{flex:1;min-width:0}
+  .bmc-coach-lbl{color:var(--gold);font-family:'Archivo';font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .bmc-coach-t{color:var(--cream);font-size:13.5px;line-height:1.4;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   /* Abonnement — cartes de plans */
   .abo-current{background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:1.5px solid var(--gold);border-radius:14px;padding:14px;margin:10px 0}
   .abo-current-row{display:flex;justify-content:space-between;align-items:center;gap:14px}
@@ -2880,7 +2926,11 @@ async function restore(){
   if(!state.easyVoice){ state.easyVoice={enabled:true, lang:"fr-FR"}; created=true; }
   if(typeof state.easyTutoDone !== "boolean"){ state.easyTutoDone=false; created=true; }
   if(typeof state.classicTutoDone !== "boolean"){ state.classicTutoDone=false; created=true; }
-  else if(!state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
+  if(state.ai && !state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
+  // Business Model Canvas — 9 blocs + stratégie IA (par profil business)
+  Object.values(state.profiles||{}).forEach(p=>{
+    if(!p.bmc) p.bmc = { segments:"", value:"", channels:"", relations:"", revenue:"", resources:"", activities:"", partners:"", costs:"", strategy:"", strategyAt:0, completedAt:0, actions:[], step:0 };
+  });
   if(!state.currentId || !state.profiles[state.currentId]){
     const p=BOSS.blankProfile("Mon business");
     state.profiles[p.id]=p; state.currentId=p.id; created=true;
@@ -3184,6 +3234,7 @@ async function addCharge(){ const p=cur(); p.charges.push({nom:"Nouvelle charge"
 function renderDash(){
   const p=cur();
   const {d,items}=BOSS.coachInsights(p);
+  renderBmcCoachCard();
   $("#d-net").textContent=BOSS.fmtF(d.net);
   $("#d-net").className="big "+(d.net>=0?"pos":"neg");
   $("#d-netnote").innerHTML = d.ca<=0 ? "Configure tes ventes pour voir ton bénéfice."
@@ -3641,6 +3692,7 @@ function openPlus(){
     <button class="plus-item" id="pl-appearance">${ic("theme")} Apparence (thème & couleur)</button>
     <button class="plus-item" id="pl-sync">${ic("sync")} Synchronisation entre appareils</button>
     <button class="plus-item" id="pl-admin">${ic("admin")} Espace administrateur</button>
+    <button class="plus-item gold" id="pl-strategie" style="background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:2px solid var(--gold);color:var(--gold);font-weight:700">🎯 Ma stratégie business (coach IA)</button>
     <button class="plus-item" id="pl-affiche">${ic("image")} Créer une affiche</button>
     <button class="plus-item" id="pl-perso">${ic("config")} Personnaliser mon menu</button>
     <button class="plus-item" id="pl-templates">${ic("boutique")} Templates métier prêts</button>
@@ -3688,6 +3740,7 @@ function openPlus(){
   $("#pl-sync").onclick=()=>{ openSync(); };
   $("#pl-appearance").onclick=()=>{ openAppearance(); };
   $("#pl-admin").onclick=()=>{ openAdmin(); };
+  const plstr=$("#pl-strategie"); if(plstr) plstr.onclick=()=>{ closeSheet(); openStrategie(); };
   const pla=$("#pl-affiche"); if(pla) pla.onclick=()=>{ closeSheet(); openAffiches(); };
   const plp=$("#pl-perso"); if(plp) plp.onclick=()=>{ closeSheet(); openPersonnalisation(); };
   const pltp=$("#pl-templates"); if(pltp) pltp.onclick=()=>{ closeSheet(); openTemplates(); };
@@ -5882,6 +5935,352 @@ function openSecurityConfig(){
     closeSheet();
   };
   $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   BUSINESS MODEL CANVAS — coach stratégie IA (français simple)
+   ============================================================ */
+const BMC_BLOCKS = [
+  { key:"segments", num:1, emoji:"👥", title:"Qui achète chez toi ?", sub:"Décris tes clients : qui sont-ils, où habitent-ils, âge, situation…", ph:"Ex : jeunes du quartier Yopougon, mamans qui vont au marché, ouvriers du chantier à côté, écoliers du collège Saint-Paul…", voice:"Dis-moi qui sont tes clients. Qui achète chez toi ?", examples:["Jeunes 18-30 ans du quartier","Mamans qui font les commissions","Étudiants","Ouvriers, chauffeurs"] },
+  { key:"value", num:2, emoji:"⭐", title:"Pourquoi ils achètent chez toi ?", sub:"Qu'est-ce qui te rend différent du voisin ? Prix, qualité, gentillesse, rapidité ?", ph:"Ex : mon poulet est le plus tendre du quartier, je livre en moins de 20 min, mes prix sont les plus bas, je fais crédit aux fidèles…", voice:"Pourquoi tes clients achètent chez toi et pas chez le voisin ?", examples:["Prix les plus bas","Meilleure qualité","Livraison rapide","Bonne accueil, sourire"] },
+  { key:"channels", num:3, emoji:"📢", title:"Comment tu les trouves ?", sub:"Où tes clients te découvrent ? Où tu les rencontres ?", ph:"Ex : bouche à oreille, WhatsApp Status, Facebook, Instagram, ma boutique au bord de la route, marché du samedi, panneau devant chez moi…", voice:"Comment tes clients te trouvent ? Où tu les rencontres ?", examples:["Bouche à oreille","Ma boutique visible","WhatsApp Status","Marché hebdomadaire"] },
+  { key:"relations", num:4, emoji:"🤝", title:"Comment tu les fidélises ?", sub:"Comment tu fais pour qu'ils reviennent ? Cartes fidélité, cadeaux, SMS ?", ph:"Ex : je connais leur prénom, je fais crédit aux réguliers, je donne un cadeau après 10 achats, je les appelle quand j'ai du nouveau…", voice:"Comment tu fais pour que tes clients reviennent ?", examples:["Je connais leurs noms","Crédit pour les réguliers","Petit cadeau après 10 achats","SMS quand du nouveau arrive"] },
+  { key:"revenue", num:5, emoji:"💰", title:"Comment tu gagnes de l'argent ?", sub:"Vente directe, livraison, abonnement, commission ?", ph:"Ex : je vends chaque plat 2 500 F, livraison payante 500 F, table réservée le week-end 5 000 F, abonnement à mes plats 30 000 F/mois…", voice:"Comment tu gagnes de l'argent ?", examples:["Vente au comptoir","Livraison à domicile","Commande à l'avance","Abonnement mensuel"] },
+  { key:"resources", num:6, emoji:"🛠️", title:"Qu'est-ce qui te sert le plus ?", sub:"Ta machine, ton local, ta recette, ton fournisseur, ton talent ?", ph:"Ex : ma machine à couture Singer, mon four à charbon, ma recette de sauce graine, mon fournisseur du grand marché, mon savoir-faire coiffure…", voice:"Qu'est-ce qui te sert le plus dans ton business ?", examples:["Ma machine","Mon local bien placé","Ma recette","Mon savoir-faire"] },
+  { key:"activities", num:7, emoji:"🔄", title:"Qu'est-ce que tu fais tous les jours ?", sub:"Les 3-4 activités qui prennent le plus de ton temps.", ph:"Ex : je fais le marché à 6h, je cuisine jusqu'à midi, je sers jusqu'à 22h, je fais les comptes le soir. Ou : je couds la journée, je livre à moto le soir…", voice:"Qu'est-ce que tu fais tous les jours pour ton business ?", examples:["Faire le marché","Cuisiner / préparer","Servir / vendre","Livrer, encaisser"] },
+  { key:"partners", num:8, emoji:"🤲", title:"Qui te fournit ? Qui t'aide ?", sub:"Fournisseurs, associés, transporteurs, prêteur, famille.", ph:"Ex : ma sœur qui vend au marché, le boucher du coin qui me fournit la viande, le tenancier de la boutique d'à côté, un livreur avec sa moto…", voice:"Qui te fournit ou t'aide dans ton business ?", examples:["Fournisseurs du marché","Ma famille","Un livreur","La boutique à côté"] },
+  { key:"costs", num:9, emoji:"💸", title:"Qu'est-ce que tu payes chaque mois ?", sub:"Loyer, salaires, matières premières, transport, électricité.", ph:"Ex : loyer 80 000 F, salaires 150 000 F, gaz et charbon 40 000 F, électricité 15 000 F, transport 20 000 F, marchandise 300 000 F…", voice:"Qu'est-ce que tu payes chaque mois pour ton business ?", examples:["Loyer","Salaires","Matières premières","Transport, électricité"] }
+];
+
+function bmcState(){ const p = cur(); if(!p.bmc){ p.bmc = { segments:"", value:"", channels:"", relations:"", revenue:"", resources:"", activities:"", partners:"", costs:"", strategy:"", strategyAt:0, completedAt:0, actions:[], step:0 }; } return p.bmc; }
+function bmcFilledCount(){ const b = bmcState(); return BMC_BLOCKS.filter(x => (b[x.key]||"").trim().length >= 5).length; }
+function bmcIsComplete(){ return bmcFilledCount() === BMC_BLOCKS.length; }
+
+/* ---- Entrée principale : dispatcher (bienvenue / questionnaire / vue) ---- */
+function openStrategie(){
+  const b = bmcState();
+  const filled = bmcFilledCount();
+  if(filled === 0){ openBmcIntro(); return; }
+  if(filled < BMC_BLOCKS.length){ openBmcQuestion(b.step || filled); return; }
+  openBmcView();
+}
+
+function openBmcIntro(){
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>🎯 Ma stratégie business</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:12px 0 6px">
+      <div style="font-size:64px;line-height:1">🎯</div>
+      <h2 style="font-family:'Archivo';font-weight:800;font-size:22px;margin:8px 0 4px">Découvre ta stratégie</h2>
+      <div style="color:var(--cream-dim);font-size:14px;line-height:1.5;max-width:340px;margin:0 auto">Réponds à <b style="color:var(--gold)">9 questions simples</b> sur ton business. En 5 minutes, BOSS analyse ton modèle et te donne <b>3 actions concrètes</b> pour vendre plus.</div>
+    </div>
+    <div class="bmc-intro-cards">
+      <div class="bmc-intro-c"><div class="bmc-intro-n">1</div><div><b>Réponds</b><br><span>9 questions simples en français</span></div></div>
+      <div class="bmc-intro-c"><div class="bmc-intro-n">2</div><div><b>BOSS analyse</b><br><span>L'IA lit tes réponses + tes chiffres</span></div></div>
+      <div class="bmc-intro-c"><div class="bmc-intro-n">3</div><div><b>Tu appliques</b><br><span>3 actions à faire ces 30 jours</span></div></div>
+    </div>
+    <button class="sheet-add" id="bmc-start" style="margin-top:14px">🚀 Commencer les 9 questions</button>
+    <div class="ps-note" style="font-size:12px;margin-top:8px">💡 Tu peux arrêter à tout moment, tes réponses sont sauvegardées. Reprends quand tu veux.</div>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#bmc-start").onclick = ()=>{ bmcState().step = 0; openBmcQuestion(0); };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function openBmcQuestion(idx){
+  const b = bmcState();
+  if(idx < 0) idx = 0;
+  if(idx >= BMC_BLOCKS.length){ openBmcSummary(); return; }
+  b.step = idx;
+  const q = BMC_BLOCKS[idx];
+  const sheet = $("#sheet");
+  const currentVal = b[q.key] || "";
+  const progressDots = BMC_BLOCKS.map((_,i)=>`<span class="bmc-dot${i<=idx?' on':''}${i===idx?' cur':''}"></span>`).join("");
+  const showMic = EasyMode.canListen();
+  sheet.innerHTML = `
+    <div class="sheet-head">
+      <h3><span style="color:var(--gold);font-family:'Archivo';font-weight:900">${q.num}/9</span> · ${q.emoji} ${escapeHtml(q.title)}</h3>
+      <button class="x" id="sheet-close">×</button>
+    </div>
+    <div class="bmc-progress">${progressDots}</div>
+    <div class="ps-note" style="font-size:14px;color:var(--cream);line-height:1.5">${escapeHtml(q.sub)}</div>
+
+    <div class="bmc-examples">
+      <div class="bmc-ex-title">💡 Exemples pour t'aider :</div>
+      <div class="bmc-ex-chips">
+        ${q.examples.map(ex=>`<button class="bmc-ex" data-add="${escapeAttr(ex)}">+ ${escapeHtml(ex)}</button>`).join("")}
+      </div>
+    </div>
+
+    <div class="pf-lbl" style="margin-top:14px">Ta réponse (écris ou dicte à voix haute)</div>
+    <textarea class="field" id="bmc-answer" rows="4" placeholder="${escapeAttr(q.ph)}" style="resize:vertical;font-family:inherit;font-size:14.5px;line-height:1.5">${escapeHtml(currentVal)}</textarea>
+
+    ${showMic ? `<button class="easy-mic" id="bmc-mic" style="margin-top:8px">🎙️ Dicter ma réponse</button>` : ""}
+    <button class="easy-mic" id="bmc-listen" style="margin-top:6px;background:none;border:1px solid var(--line);color:var(--cream)">🔊 Écouter la question</button>
+
+    <div class="bmc-nav">
+      ${idx>0?`<button class="plus-item" id="bmc-back">← Précédent</button>`:'<div></div>'}
+      <button class="sheet-add" id="bmc-next">${idx===BMC_BLOCKS.length-1?"✓ Terminer les 9 questions":"Suivant →"}</button>
+    </div>
+    <button class="plus-item" id="bmc-save-later" style="margin-top:8px;background:none;border:none;color:var(--cream-dim);font-size:12.5px">Sauvegarder et continuer plus tard</button>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+
+  const ta = $("#bmc-answer");
+  const saveField = async ()=>{ b[q.key] = (ta.value||"").slice(0, 1000); await persist(); };
+  ta.oninput = saveField;
+
+  sheet.querySelectorAll(".bmc-ex").forEach(btn => btn.onclick = ()=>{
+    const add = btn.dataset.add;
+    const cur = ta.value.trim();
+    ta.value = cur ? cur + ", " + add : add;
+    saveField();
+  });
+
+  const micBtn = $("#bmc-mic");
+  if(micBtn) micBtn.onclick = ()=>{
+    micBtn.classList.add("rec"); micBtn.textContent = "🔴 Parle maintenant…";
+    EasyMode.listen(txt=>{
+      const cur = ta.value.trim();
+      ta.value = cur ? cur + " " + txt : txt;
+      saveField();
+    }, ()=>{ micBtn.classList.remove("rec"); micBtn.textContent = "🎙️ Dicter ma réponse"; });
+  };
+
+  const listenBtn = $("#bmc-listen");
+  if(listenBtn) listenBtn.onclick = ()=>{ EasyMode.speak(q.voice); };
+
+  const bk = $("#bmc-back"); if(bk) bk.onclick = async ()=>{ await saveField(); openBmcQuestion(idx-1); };
+  $("#bmc-next").onclick = async ()=>{
+    await saveField();
+    if(!ta.value.trim() || ta.value.trim().length < 5){
+      alert("Écris quelques mots avant de continuer. Utilise les exemples si tu ne sais pas quoi mettre.");
+      return;
+    }
+    if(idx === BMC_BLOCKS.length-1){ b.completedAt = Date.now(); await persist(); openBmcSummary(); }
+    else openBmcQuestion(idx+1);
+  };
+  $("#bmc-save-later").onclick = async ()=>{ await saveField(); closeSheet(); };
+
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+  setTimeout(()=>{ if(!currentVal) ta.focus(); }, 300);
+}
+
+/* ---- Résumé avant génération IA ---- */
+function openBmcSummary(){
+  const b = bmcState();
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>✅ 9 questions terminées</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:8px 0">
+      <div style="font-size:56px">🎉</div>
+      <div style="font-family:'Archivo';font-weight:800;font-size:20px;margin-top:6px">Bravo patron !</div>
+      <div style="color:var(--cream-dim);font-size:14px;margin-top:4px">Tu as répondu à toutes les questions.<br>Prêt à voir ta stratégie ?</div>
+    </div>
+    <button class="sheet-add" id="bmc-gen" style="margin-top:12px;font-size:16px;padding:16px">🤖 Générer ma stratégie avec l'IA</button>
+    <div class="ps-note" style="font-size:12.5px;margin-top:8px">L'IA lit tes 9 réponses + tes chiffres de vente et te donne 3 actions concrètes à faire dans les 30 prochains jours. Compte ~15 secondes.</div>
+    <button class="plus-item" id="bmc-review" style="margin-top:10px">📝 Revoir mes réponses avant</button>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#bmc-review").onclick = ()=>openBmcQuestion(0);
+  $("#bmc-gen").onclick = ()=>generateBmcStrategy();
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+async function generateBmcStrategy(){
+  const b = bmcState();
+  const p = cur();
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>🤖 L'IA analyse ton business…</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:40px 20px">
+      <div style="font-size:64px;animation:aff-spin 1.6s linear infinite">⏳</div>
+      <div style="font-family:'Archivo';font-weight:800;font-size:18px;margin-top:14px">BOSS lit tes réponses…</div>
+      <div style="color:var(--cream-dim);font-size:13.5px;margin-top:6px">~15 secondes. Ne ferme pas cette fenêtre.</div>
+    </div>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+
+  const m = BOSS.METIERS[p.metier];
+  const stats = BOSS.caisseTotals(p);
+  const contexte = [
+    `Business : ${p.name || 'non renseigné'}`,
+    m ? `Métier : ${m.name}` : '',
+    p.identite?.adresse ? `Adresse : ${p.identite.adresse}` : '',
+    `Nb produits au catalogue : ${(p.revenus||[]).length}`,
+    `Ventes ce mois : ${stats.ventesMois||0} F`,
+    `Dépenses ce mois : ${stats.depensesMois||0} F`,
+    `Marge nette : ${(stats.ventesMois||0)-(stats.depensesMois||0)} F`
+  ].filter(Boolean).join("\n");
+
+  const answers = BMC_BLOCKS.map(q => `${q.num}. ${q.title}\n${b[q.key]||"(pas de réponse)"}`).join("\n\n");
+
+  const prompt = `Tu es un coach business expérimenté pour micro-entrepreneurs d'Afrique de l'Ouest. Analyse ce business et donne des conseils SIMPLES, PRATIQUES et ACTIONNABLES.
+
+CONTEXTE DU BUSINESS:
+${contexte}
+
+RÉPONSES AUX 9 QUESTIONS DU BUSINESS MODEL CANVAS:
+${answers}
+
+Écris ta réponse en français SIMPLE (niveau école primaire, éviter les mots techniques). Structure:
+
+🎯 CE QUE JE VOIS DE FORT
+(3 points positifs de son business, en 1 phrase courte chacun)
+
+⚠️ CE QUE JE VOIS DE FAIBLE
+(2-3 points à améliorer, en 1 phrase chacun)
+
+📋 3 ACTIONS À FAIRE CES 30 JOURS
+(3 actions TRÈS concrètes et faisables, format: numéro puis action puis 1 phrase d'explication)
+
+Reste bref (max 500 mots). Utilise "tu" et parle comme à un ami patron. Pas de jargon marketing.`;
+
+  try {
+    const url = "https://text.pollinations.ai/" + encodeURIComponent(prompt);
+    const resp = await fetch(url + "?model=openai");
+    const text = await resp.text();
+    if(!text || text.length < 100) throw new Error("Réponse vide");
+    b.strategy = text.slice(0, 3000);
+    b.strategyAt = Date.now();
+
+    // Parse actions (numérotées 1./2./3.)
+    const actionsMatch = text.split(/📋[^\n]*/i)[1] || "";
+    const acts = actionsMatch.split(/\n\s*(?=\d[\.\)])/).map(s=>s.trim()).filter(s=>s.length>10).slice(0,3);
+    b.actions = acts.map((a,i)=>({ id:"a"+Date.now()+i, text:a.slice(0,500), done:false, createdAt:Date.now() }));
+
+    await persist();
+    openBmcView();
+  } catch(e){
+    // Fallback local si IA down
+    b.strategy = `⚠️ L'IA est indisponible pour le moment. Voici quelques pistes générales :
+
+🎯 CE QUE JE VOIS DE FORT
+Tu as pris le temps de réfléchir à ton business en 9 questions. Ça t'aide déjà à voir plus clair.
+
+⚠️ CE QUE JE VOIS DE FAIBLE
+Sans analyse IA, difficile de savoir. Réessaie plus tard.
+
+📋 3 ACTIONS SIMPLES
+1. Regarde tes chiffres tous les soirs (ventes - dépenses)
+2. Note pourquoi tu perds des clients
+3. Essaie un canal WhatsApp Status quotidien pendant 7 jours`;
+    b.strategyAt = Date.now();
+    b.actions = [];
+    await persist();
+    openBmcView();
+  }
+}
+
+/* ---- Vue principale : BMC visuel + stratégie ---- */
+function openBmcView(){
+  const b = bmcState();
+  const sheet = $("#sheet");
+  const cells = BMC_BLOCKS.map(q=>{
+    const val = b[q.key] || "";
+    const short = val ? (val.length>80 ? val.slice(0,78)+"…" : val) : `<span style="color:var(--cream-dim);font-style:italic">à compléter</span>`;
+    return `
+      <div class="bmc-cell" data-key="${q.key}">
+        <div class="bmc-cell-h">${q.emoji} ${escapeHtml(q.title)}</div>
+        <div class="bmc-cell-t">${typeof short==="string" && short.includes("<span")?short:escapeHtml(val ? (val.length>80?val.slice(0,78)+"…":val) : "à compléter")}</div>
+      </div>
+    `;
+  }).join("");
+
+  const strategyHtml = b.strategy
+    ? formatBmcStrategy(b.strategy)
+    : `<div class="ps-note">Génère ta stratégie IA pour voir tes forces, faiblesses et 3 actions à faire.</div>`;
+
+  const actionsHtml = (b.actions||[]).map(a=>`
+    <label class="bmc-action ${a.done?'done':''}">
+      <input type="checkbox" ${a.done?'checked':''} data-id="${escapeAttr(a.id)}">
+      <div class="bmc-action-t">${escapeHtml(a.text)}</div>
+    </label>
+  `).join("");
+
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>🎯 Ma stratégie business</h3><button class="x" id="sheet-close">×</button></div>
+
+    ${b.actions&&b.actions.length ? `
+      <div class="bmc-actions-box">
+        <div class="bmc-actions-title">📋 Mes 3 actions à faire ces 30 jours</div>
+        ${actionsHtml}
+      </div>
+    ` : ""}
+
+    <details ${b.actions&&b.actions.length?'':'open'} style="margin-top:14px">
+      <summary class="bmc-fold">🤖 Rapport IA complet</summary>
+      <div class="bmc-strategy">${strategyHtml}</div>
+    </details>
+
+    <details style="margin-top:12px">
+      <summary class="bmc-fold">📊 Mon Business Model Canvas</summary>
+      <div class="bmc-canvas">${cells}</div>
+    </details>
+
+    <div class="bmc-btns">
+      <button class="plus-item" id="bmc-regen">🔄 Regénérer la stratégie</button>
+      <button class="plus-item" id="bmc-edit">✏️ Modifier mes réponses</button>
+    </div>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#bmc-regen").onclick = ()=>generateBmcStrategy();
+  $("#bmc-edit").onclick = ()=>openBmcQuestion(0);
+
+  sheet.querySelectorAll(".bmc-action input[type=checkbox]").forEach(cb => cb.onchange = async ()=>{
+    const id = cb.dataset.id;
+    const a = (b.actions||[]).find(x=>x.id===id);
+    if(a){ a.done = cb.checked; a.doneAt = cb.checked ? Date.now() : 0; await persist(); openBmcView(); }
+  });
+  sheet.querySelectorAll(".bmc-cell").forEach(cell => cell.onclick = ()=>{
+    const key = cell.dataset.key;
+    const idx = BMC_BLOCKS.findIndex(q=>q.key===key);
+    if(idx>=0) openBmcQuestion(idx);
+  });
+
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function formatBmcStrategy(txt){
+  let html = escapeHtml(txt).replace(/\n/g, "<br>");
+  html = html.replace(/(🎯[^<]*)/g, '<div class="bmc-str-h" style="color:#7dd095">$1</div>');
+  html = html.replace(/(⚠️[^<]*)/g, '<div class="bmc-str-h" style="color:#f3c162">$1</div>');
+  html = html.replace(/(📋[^<]*)/g, '<div class="bmc-str-h" style="color:var(--gold)">$1</div>');
+  return html;
+}
+
+/* ---- Widget coach sur dashboard : prochaine action ---- */
+function bmcNextAction(){
+  const b = bmcState();
+  if(!b || !b.actions) return null;
+  return b.actions.find(a => !a.done) || null;
+}
+function renderBmcCoachCard(){
+  const host = document.getElementById("d-coach");
+  if(!host) return;
+  // Retirer une éventuelle carte précédente
+  const old = document.getElementById("bmc-coach-card"); if(old) old.remove();
+  const filled = bmcFilledCount();
+  const action = bmcNextAction();
+  let cardEl = null;
+  if(action){
+    cardEl = document.createElement("div");
+    cardEl.id = "bmc-coach-card"; cardEl.className = "bmc-coach-card";
+    cardEl.innerHTML = `<div class="bmc-coach-emoji">🎯</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Action stratégie du moment</div><div class="bmc-coach-t">${escapeHtml(String(action.text).slice(0,180))}</div></div>`;
+    cardEl.onclick = ()=>openStrategie();
+  } else if(filled === 0){
+    cardEl = document.createElement("div");
+    cardEl.id = "bmc-coach-card"; cardEl.className = "bmc-coach-card";
+    cardEl.innerHTML = `<div class="bmc-coach-emoji">🎯</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Découvre ta stratégie</div><div class="bmc-coach-t">9 questions simples + IA = 3 actions concrètes pour vendre plus. 5 min.</div></div>`;
+    cardEl.onclick = ()=>openStrategie();
+  } else if(filled < BMC_BLOCKS.length){
+    cardEl = document.createElement("div");
+    cardEl.id = "bmc-coach-card"; cardEl.className = "bmc-coach-card";
+    cardEl.innerHTML = `<div class="bmc-coach-emoji">📝</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Stratégie en cours</div><div class="bmc-coach-t">${filled}/${BMC_BLOCKS.length} questions répondues. Reprends pour voir ta stratégie IA.</div></div>`;
+    cardEl.onclick = ()=>openStrategie();
+  }
+  if(cardEl) host.parentNode.insertBefore(cardEl, host);
 }
 
 const IdleLock=(function(){
