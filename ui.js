@@ -2521,40 +2521,16 @@ function openSupportNew(){
   $("#sup-file-inp").onchange = (e)=>{ Array.from(e.target.files||[]).forEach(addFile); e.target.value=""; };
   $("#sup-photo-inp").onchange = (e)=>{ Array.from(e.target.files||[]).forEach(addFile); e.target.value=""; };
 
+  // Bouton note vocale : hold-to-record façon WhatsApp (appui long, relâcher pour envoyer, glisser à gauche pour annuler)
   const audioBtn = $("#sup-att-audio");
-  audioBtn.onclick = async ()=>{
-    if(audioRec && audioRec.state === "recording"){
-      audioRec.stop();
-      return;
-    }
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      alert("Ton navigateur ne supporte pas l'enregistrement audio.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-      audioChunks = [];
-      const mimeCandidates = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
-      const mime = mimeCandidates.find(m => typeof MediaRecorder!=="undefined" && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
-      audioRec = mime ? new MediaRecorder(stream, {mimeType:mime}) : new MediaRecorder(stream);
-      audioRec.ondataavailable = (e)=>{ if(e.data && e.data.size>0) audioChunks.push(e.data); };
-      audioRec.onstop = ()=>{
-        stream.getTracks().forEach(t=>t.stop());
-        const type = audioRec.mimeType || "audio/webm";
-        const ext = type.indexOf("mp4")>=0?"m4a":type.indexOf("ogg")>=0?"ogg":"webm";
-        audioBlob = new Blob(audioChunks, {type});
-        const f = new File([audioBlob], "note-vocale-"+Date.now()+"."+ext, {type});
-        addFile(f);
-        audioBtn.classList.remove("rec");
-        audioBtn.innerHTML = ic("mic")+" Note vocale";
-      };
-      audioRec.start();
-      audioBtn.classList.add("rec");
-      audioBtn.innerHTML = ic("close")+" Arrêter l'enregistrement";
-    } catch(e){
-      alert("Impossible d'accéder au micro : "+(e.message||e));
-    }
-  };
+  audioBtn.title = "Maintiens appuyé pour enregistrer. Glisse à gauche pour annuler.";
+  WhatsAppMic.attach(audioBtn, (blob, durationMs)=>{
+    const type = blob.type || "audio/webm";
+    const ext = type.indexOf("mp4")>=0?"m4a":type.indexOf("ogg")>=0?"ogg":"webm";
+    const sec = Math.round(durationMs/1000);
+    const f = new File([blob], `note-vocale-${sec}s-${Date.now()}.${ext}`, {type});
+    addFile(f);
+  });
 
   $("#sup-send").onclick = async ()=>{
     const subject = ($("#sup-subject").value||"").trim();
@@ -3626,6 +3602,139 @@ const BioAuth=(function(){
 
   return { available, platformAvailable, enroll, verify, enrolled, disable: clearCredId, getCredId };
 })();
+
+/* ============================================================
+   WhatsAppMic — appui long enregistre, relâcher envoie, glisser annule
+   ============================================================ */
+const WhatsAppMic = {
+  attach(btn, onFinish){
+    if(!btn) return;
+    let stream=null, rec=null, chunks=[], startedAt=0, timer=null, canceled=false;
+    let startX=0, startY=0, currentDelta=0;
+
+    const isTouch = "ontouchstart" in window;
+
+    async function begin(clientX, clientY){
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        alert("Ton navigateur ne supporte pas l'enregistrement audio.");
+        return;
+      }
+      canceled=false; chunks=[]; startX=clientX; startY=clientY; currentDelta=0;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      } catch(e){
+        alert("Autorise l'accès au micro pour envoyer une note vocale.");
+        return;
+      }
+      const mimes = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
+      const mime = mimes.find(m => typeof MediaRecorder!=="undefined" && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
+      try {
+        rec = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
+      } catch(e){
+        try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){}
+        alert("Enregistrement audio impossible sur ce navigateur.");
+        return;
+      }
+      rec.ondataavailable = e => { if(e.data && e.data.size>0) chunks.push(e.data); };
+      rec.onstop = ()=>{
+        try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){}
+        stream = null;
+        if(canceled){ hideOverlay(); return; }
+        const type = (rec.mimeType) || "audio/webm";
+        const blob = new Blob(chunks, {type});
+        const durationMs = Date.now() - startedAt;
+        hideOverlay();
+        if(blob.size > 0 && durationMs > 300){
+          onFinish && onFinish(blob, durationMs);
+        }
+      };
+      startedAt = Date.now();
+      rec.start();
+      showOverlay();
+      timer = setInterval(updateChrono, 250);
+    }
+
+    function stopAndSend(){
+      if(!rec || rec.state !== "recording") return;
+      canceled = false;
+      try{ rec.stop(); }catch(_){}
+      clearInterval(timer); timer = null;
+    }
+    function cancelRec(){
+      if(!rec || rec.state !== "recording") return;
+      canceled = true;
+      try{ rec.stop(); }catch(_){}
+      clearInterval(timer); timer = null;
+    }
+
+    let overlay = null;
+    function showOverlay(){
+      if(overlay) return;
+      overlay = document.createElement("div");
+      overlay.className = "wamic-overlay";
+      overlay.innerHTML = `
+        <div class="wamic-box">
+          <div class="wamic-pulse"></div>
+          <div class="wamic-chrono" id="wamic-time">0:00</div>
+          <div class="wamic-hint" id="wamic-hint">← Glisser pour annuler</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    function updateChrono(){
+      const el = document.getElementById("wamic-time");
+      if(!el) return;
+      const s = Math.floor((Date.now()-startedAt)/1000);
+      el.textContent = Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+    }
+    function hideOverlay(){
+      if(overlay){ try{ overlay.remove(); }catch(_){} overlay = null; }
+    }
+    function updateSlide(x){
+      if(!overlay) return;
+      const hint = document.getElementById("wamic-hint");
+      currentDelta = Math.min(0, x - startX);
+      if(currentDelta < -80){
+        overlay.classList.add("cancel-armed");
+        if(hint) hint.textContent = "Relâche pour annuler";
+      } else {
+        overlay.classList.remove("cancel-armed");
+        if(hint) hint.textContent = "← Glisser pour annuler";
+      }
+    }
+
+    // Touch
+    btn.addEventListener("touchstart", e=>{
+      e.preventDefault();
+      const t = e.touches[0];
+      begin(t.clientX, t.clientY);
+    }, {passive:false});
+    btn.addEventListener("touchmove", e=>{
+      const t = e.touches[0];
+      updateSlide(t.clientX);
+    }, {passive:true});
+    btn.addEventListener("touchend", e=>{
+      if(currentDelta < -80) cancelRec();
+      else stopAndSend();
+    });
+    btn.addEventListener("touchcancel", ()=>cancelRec());
+
+    // Mouse (desktop test)
+    btn.addEventListener("mousedown", e=>{
+      if(isTouch) return;
+      begin(e.clientX, e.clientY);
+      const mv = ev => updateSlide(ev.clientX);
+      const up = ev => {
+        document.removeEventListener("mousemove", mv);
+        document.removeEventListener("mouseup", up);
+        if(currentDelta < -80) cancelRec();
+        else stopAndSend();
+      };
+      document.addEventListener("mousemove", mv);
+      document.addEventListener("mouseup", up);
+    });
+  }
+};
 
 function openSecurityConfig(){
   const sheet = $("#sheet");
