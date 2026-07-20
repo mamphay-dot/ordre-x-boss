@@ -735,7 +735,10 @@ function openProduct(index){
       stock: stockRaw===""?null:(parseFloat(stockRaw)||0),
       vitrine:true
     };
-    if(editingIndex==null){ prod.id="r"+Date.now()+Math.random().toString(36).slice(2,6); p.revenus.push(prod); }
+    if(editingIndex==null){
+      if(!checkPlanFeature("products", (p.revenus||[]).length)) return;
+      prod.id="r"+Date.now()+Math.random().toString(36).slice(2,6); p.revenus.push(prod);
+    }
     else { p.revenus[editingIndex]={...p.revenus[editingIndex],...prod}; }
     await persist(); closeSheet(); renderVitrine(); renderTopbar(); renderStock();
   };
@@ -3233,6 +3236,50 @@ function openSecurityConfig(){
     closeSheet();
   };
   $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   FEATURE GUARDS — bloquer selon le plan actif
+   ============================================================ */
+function checkPlanFeature(key, currentCount){
+  const plan = BOSS.currentPlan(state.license);
+  const limit = plan.limits[key];
+  if(limit === -1 || limit === true) return true;
+  if(typeof limit === "number"){
+    if((currentCount||0) >= limit){
+      showPlanBlockMessage(key, limit, plan);
+      return false;
+    }
+    return true;
+  }
+  // boolean false → feature interdite
+  if(limit === false){
+    showPlanBlockMessage(key, 0, plan);
+    return false;
+  }
+  return true;
+}
+function showPlanBlockMessage(key, limit, plan){
+  const featureLabels = {
+    products: "produits au catalogue",
+    salesPerMonth: "ventes ce mois",
+    aiMessagesPerDay: "messages IA aujourd'hui",
+    affichesPerMonth: "affiches IA ce mois",
+    cloudSync: "sauvegarde cloud",
+    thermalPrint: "impression thermal",
+    cgaReports: "rapports fiscaux CGA",
+    advancedStats: "statistiques avancées",
+    alertes: "alertes intelligentes",
+    collaborateurs: "collaborateurs"
+  };
+  const label = featureLabels[key] || key;
+  const upsell = plan.id === "starter" ? "Business (5 000 F) ou Pro (10 000 F)" : "Pro (10 000 F)";
+  const msg = limit
+    ? `⚠️ Ton plan ${plan.name} est limité à ${limit} ${label}. Passe en ${upsell} pour continuer.`
+    : `⚠️ Cette fonction (${label}) n'est pas disponible en ${plan.name}. Passe en ${upsell}.`;
+  if(confirm(msg + "\n\nOK pour ouvrir Mon abonnement, Annuler pour rester.")){
+    setTimeout(openAbonnement, 200);
+  }
 }
 
 /* ============================================================
