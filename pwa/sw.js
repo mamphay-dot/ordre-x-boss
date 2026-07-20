@@ -1,4 +1,4 @@
-const CACHE = "boss-v29";
+const CACHE = "boss-v30";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
 self.addEventListener("install", e => {

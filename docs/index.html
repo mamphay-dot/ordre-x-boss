@@ -792,6 +792,16 @@
   }
 
   /* SM : MOBILE STANDARD (400-639) — layout par défaut */
+  /* Sur tout téléphone (< 640px), cloud-badge en icône seule pour laisser la place au nom du business */
+  @media (max-width:639px){
+    .cloud-badge{font-size:0!important;padding:6px 9px;min-width:36px;justify-content:center;gap:0}
+    .cloud-badge > .ic{width:16px;height:16px}
+    .profbtn{max-width:42%}
+    .profbtn .pn{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .profbtn .pm{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .topbar{gap:6px}
+    .nav-arrow{width:32px;height:32px;border-radius:9px}
+  }
 
   /* MD : GRAND MOBILE / FOLD OUVERT / TABLETTE PORTRAIT (640-799) */
   @media (min-width:640px){
