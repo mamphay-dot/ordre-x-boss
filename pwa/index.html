@@ -341,6 +341,13 @@
   .btn-mini.danger{color:#f96;border-color:#a34}
   .aff-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .cat-p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0}
+  /* Auth — onglets Email/Téléphone + méthode */
+  .auth-tabs{display:flex;gap:0;background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:4px;margin:12px 0}
+  .auth-tab{flex:1;background:none;border:none;padding:10px;border-radius:8px;color:var(--cream-dim);font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
+  .auth-tab.on{background:var(--gold);color:var(--on-accent)}
+  .auth-method{display:flex;gap:6px;margin:8px 0 6px}
+  .auth-m{flex:1;background:var(--char);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--cream-dim);font-weight:600;font-size:12.5px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s}
+  .auth-m.on{border-color:var(--gold);color:var(--gold);background:linear-gradient(135deg,#241f10 0%,#1a1608 100%)}
   /* Affiche IA — refonte 2026 */
   .aff-styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:6px 0 10px}
   .aff-style{background:var(--char);border:1.5px solid var(--line);border-radius:12px;padding:10px 8px;cursor:pointer;font-family:inherit;text-align:center;transition:border-color .15s}
@@ -1373,6 +1380,69 @@
         user: data.user
       });
       return data;
+    },
+    /* --- AUTH PAR TÉLÉPHONE (Solution A : phone + password) --- */
+    async signUpPhone(phone, password, nom){
+      const data = await rawFetch("/auth/v1/signup", {
+        method: "POST",
+        body: { phone, password, data: nom ? {nom} : undefined },
+        noAuth: true
+      });
+      if(data.access_token){
+        saveSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: data.expires_at || Math.floor(Date.now()/1000)+(data.expires_in||3600),
+          user: data.user
+        });
+      }
+      return data;
+    },
+    async signInPhone(phone, password){
+      const data = await rawFetch("/auth/v1/token?grant_type=password", {
+        method: "POST",
+        body: { phone, password },
+        noAuth: true
+      });
+      saveSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: data.expires_at || Math.floor(Date.now()/1000)+(data.expires_in||3600),
+        user: data.user
+      });
+      return data;
+    },
+    /* --- AUTH PAR SMS (Solution B : phone + code SMS) --- */
+    async sendSmsOtp(phone, createUser){
+      return rawFetch("/auth/v1/otp", {
+        method: "POST",
+        body: { phone, create_user: !!createUser, channel: "sms" },
+        noAuth: true
+      });
+    },
+    async verifySmsOtp(phone, token, type){
+      const data = await rawFetch("/auth/v1/verify", {
+        method: "POST",
+        body: { phone, token, type: type || "sms" },
+        noAuth: true
+      });
+      if(data.access_token){
+        saveSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: data.expires_at || Math.floor(Date.now()/1000)+(data.expires_in||3600),
+          user: data.user
+        });
+      }
+      return data;
+    },
+    /* --- RÉCUPÉRATION MOT DE PASSE PAR EMAIL (Supabase natif) --- */
+    async resetPasswordEmail(email, redirectTo){
+      return rawFetch("/auth/v1/recover", {
+        method: "POST",
+        body: { email, options: redirectTo ? {email_redirect_to: redirectTo} : undefined },
+        noAuth: true
+      });
     },
     async magicLink(email, redirectTo){
       return rawFetch("/auth/v1/otp", {
@@ -3908,6 +3978,31 @@ const Cloud = (function(){
     if(!available()) throw new Error("Cloud non configuré");
     return NET.auth.magicLink(email, location && location.href);
   }
+  async function signInPhonePassword(phone, password){
+    if(!available()) throw new Error("Cloud non configuré");
+    await NET.auth.signInPhone(phone, password);
+    await init();
+  }
+  async function signUpPhone(phone, password){
+    if(!available()) throw new Error("Cloud non configuré");
+    const r = await NET.auth.signUpPhone(phone, password);
+    if(session()) await init();
+    return r;
+  }
+  async function sendSmsCode(phone, createUser){
+    if(!available()) throw new Error("Cloud non configuré");
+    return NET.auth.sendSmsOtp(phone, createUser);
+  }
+  async function verifySmsCode(phone, token, type){
+    if(!available()) throw new Error("Cloud non configuré");
+    const r = await NET.auth.verifySmsOtp(phone, token, type);
+    if(session()) await init();
+    return r;
+  }
+  async function resetPassword(email){
+    if(!available()) throw new Error("Cloud non configuré");
+    return NET.auth.resetPasswordEmail(email, location && location.href);
+  }
   async function signOut(){
     if(!available()) return;
     if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
@@ -3956,6 +4051,7 @@ const Cloud = (function(){
   return {
     available, session, user, status, currentOrgId,
     init, signInPassword, signUp, sendMagicLink, signOut,
+    signInPhonePassword, signUpPhone, sendSmsCode, verifySmsCode, resetPassword,
     createOrg, inviteCollab, listMembers, listInvitations, acceptInvitation,
     pullAndMerge, pushLocal, syncNow, onChange
   };
@@ -3980,6 +4076,256 @@ function refreshCloudBadge(){
 }
 
 /* ============ ÉCRAN AUTH / ORG / COLLABORATEURS ============ */
+/* ============================================================
+   AUTH — UI unifiée : Email + Téléphone + SMS + Biométrie
+   ============================================================ */
+const AUTH_COUNTRIES = [
+  { code:"+225", flag:"🇨🇮", name:"Côte d'Ivoire" },
+  { code:"+221", flag:"🇸🇳", name:"Sénégal" },
+  { code:"+223", flag:"🇲🇱", name:"Mali" },
+  { code:"+226", flag:"🇧🇫", name:"Burkina Faso" },
+  { code:"+229", flag:"🇧🇯", name:"Bénin" },
+  { code:"+228", flag:"🇹🇬", name:"Togo" },
+  { code:"+224", flag:"🇬🇳", name:"Guinée" },
+  { code:"+237", flag:"🇨🇲", name:"Cameroun" },
+  { code:"+241", flag:"🇬🇦", name:"Gabon" },
+  { code:"+243", flag:"🇨🇩", name:"RDC" },
+  { code:"+242", flag:"🇨🇬", name:"Congo" },
+  { code:"+33",  flag:"🇫🇷", name:"France" },
+  { code:"+32",  flag:"🇧🇪", name:"Belgique" },
+  { code:"+1",   flag:"🇨🇦", name:"Canada" }
+];
+
+let __authState = { tab:"phone", country:"+225", method:"password" };
+
+function renderAuthSheet(sheet){
+  const t = __authState.tab;
+  const method = __authState.method;
+  const countryOpts = AUTH_COUNTRIES.map(c=>
+    `<option value="${c.code}"${c.code===__authState.country?" selected":""}>${c.flag} ${c.code} · ${escapeHtml(c.name)}</option>`
+  ).join("");
+
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>${ic("cloud")} Espace en ligne</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Synchronise tes données entre appareils, sauvegarde-les en ligne, invite ton équipe. <b>Gratuit</b>.</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab ${t==='phone'?'on':''}" data-t="phone">📱 Téléphone</button>
+      <button class="auth-tab ${t==='email'?'on':''}" data-t="email">✉️ Email</button>
+    </div>
+
+    ${t==='phone' ? `
+      <div class="auth-method">
+        <button class="auth-m ${method==='password'?'on':''}" data-m="password">🔐 Mot de passe</button>
+        <button class="auth-m ${method==='sms'?'on':''}" data-m="sms">💬 Code SMS</button>
+      </div>
+
+      <div class="pf-lbl">Pays</div>
+      <select class="field" id="auth-country">${countryOpts}</select>
+
+      <div class="pf-lbl">Ton numéro (sans le code pays)</div>
+      <input class="field" id="auth-phone" type="tel" inputmode="tel" placeholder="0747857939" autocomplete="tel-national">
+
+      ${method==='password' ? `
+        <div class="pf-lbl">Mot de passe (6 caractères min.)</div>
+        <input class="field" id="auth-pw" type="password" autocomplete="current-password" placeholder="Ton mot de passe">
+        <button class="sheet-add" id="auth-phone-signin">🔐 Se connecter</button>
+        <button class="plus-item" id="auth-phone-signup" style="margin-top:8px">➕ Créer un compte avec ce numéro</button>
+      ` : `
+        <button class="sheet-add" id="auth-sms-send">💬 Recevoir un code par SMS</button>
+        <div class="ps-note" style="margin-top:8px;font-size:12px">Un code à 6 chiffres t'arrive par SMS. Tu tapes le code et tu es connecté(e). Aucun mot de passe à retenir.</div>
+        <div id="auth-sms-verify" style="display:none;margin-top:12px">
+          <div class="pf-lbl">Code reçu par SMS</div>
+          <input class="field" id="auth-sms-code" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="font-size:22px;letter-spacing:.4em;text-align:center;font-weight:800">
+          <button class="sheet-add" id="auth-sms-verify-btn">✓ Valider le code</button>
+          <button class="plus-item" id="auth-sms-resend" style="margin-top:8px;font-size:12.5px">Renvoyer le code</button>
+        </div>
+      `}
+    ` : `
+      <div class="pf-lbl">Ton adresse email</div>
+      <input class="field" id="auth-email" type="email" autocomplete="email" placeholder="ton.email@exemple.com">
+
+      <div class="auth-method">
+        <button class="auth-m ${method==='magic'?'on':''}" data-m="magic">✨ Lien magique</button>
+        <button class="auth-m ${method==='password'?'on':''}" data-m="password">🔐 Mot de passe</button>
+      </div>
+
+      ${method==='magic' ? `
+        <button class="sheet-add" id="auth-email-magic">✉️ Recevoir un lien par email</button>
+        <div class="ps-note" style="margin-top:8px;font-size:12px">Tu cliques sur le lien reçu, tu es connecté(e). Simple et sûr.</div>
+      ` : `
+        <div class="pf-lbl">Mot de passe</div>
+        <input class="field" id="auth-pw" type="password" autocomplete="current-password" placeholder="Ton mot de passe">
+        <button class="sheet-add" id="auth-email-signin">🔐 Se connecter</button>
+        <button class="plus-item" id="auth-email-signup" style="margin-top:8px">➕ Créer un compte</button>
+        <button class="plus-item" id="auth-email-forgot" style="margin-top:8px;font-size:12.5px">Mot de passe oublié ?</button>
+      `}
+    `}
+
+    <div class="ps-note" id="auth-status" style="margin-top:14px;min-height:18px"></div>
+  `;
+
+  // Wire tabs
+  sheet.querySelectorAll(".auth-tab").forEach(b=>b.onclick=()=>{
+    __authState.tab = b.dataset.t;
+    __authState.method = b.dataset.t==='phone' ? 'password' : 'magic';
+    renderAuthSheet(sheet);
+  });
+  sheet.querySelectorAll(".auth-m").forEach(b=>b.onclick=()=>{
+    __authState.method = b.dataset.m;
+    renderAuthSheet(sheet);
+  });
+  const csel = $("#auth-country");
+  if(csel) csel.onchange = ()=>{ __authState.country = csel.value; };
+
+  $("#sheet-close").onclick = closeSheet;
+
+  const setStatus = (msg, ok)=>{
+    const s = $("#auth-status"); if(!s) return;
+    s.innerHTML = msg;
+    s.style.color = ok===false?"#f96":ok===true?"#7c7":"";
+  };
+  const validEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  const cleanPhone = raw => {
+    const digits = String(raw||"").replace(/[^\d]/g,"");
+    // On enlève le 0 initial si numéro national (ex: 07... → 7...)
+    return __authState.country + (digits.startsWith("0") ? digits.slice(1) : digits);
+  };
+  const validPhone = full => /^\+\d{7,15}$/.test(full);
+
+  /* --- Actions Téléphone + mot de passe --- */
+  const bPhSignIn = $("#auth-phone-signin");
+  if(bPhSignIn) bPhSignIn.onclick = async ()=>{
+    const phone = cleanPhone($("#auth-phone").value);
+    const pw = $("#auth-pw").value;
+    if(!validPhone(phone)){ setStatus("Numéro invalide. Vérifie le pays et ton numéro.", false); return; }
+    if(!pw){ setStatus("Entre ton mot de passe.", false); return; }
+    setStatus("Connexion…");
+    try{ await Cloud.signInPhonePassword(phone, pw); setStatus("✅ Connecté", true); setTimeout(openCloudSheet, 700); }
+    catch(e){
+      const m = (e.message||"").toLowerCase();
+      if(m.includes("invalid") || m.includes("credentials")) setStatus("Numéro ou mot de passe incorrect.", false);
+      else setStatus("Échec : "+(e.message||"réessaie"), false);
+    }
+  };
+  const bPhSignUp = $("#auth-phone-signup");
+  if(bPhSignUp) bPhSignUp.onclick = async ()=>{
+    const phone = cleanPhone($("#auth-phone").value);
+    const pw = $("#auth-pw").value;
+    if(!validPhone(phone)){ setStatus("Numéro invalide.", false); return; }
+    if(!pw || pw.length < 6){ setStatus("Mot de passe : 6 caractères minimum.", false); return; }
+    setStatus("Création du compte…");
+    try{
+      await Cloud.signUpPhone(phone, pw);
+      if(Cloud.session()){ setStatus("✅ Compte créé et connecté", true); setTimeout(openCloudSheet, 700); }
+      else setStatus("✅ Compte créé. Confirmation par SMS envoyée si activée.", true);
+    }catch(e){
+      const m = (e.message||"").toLowerCase();
+      if(m.includes("already") || m.includes("registered")) setStatus("Ce numéro est déjà utilisé. Essaie « Se connecter ».", false);
+      else if(m.includes("sms") || m.includes("phone")) setStatus("Envoi SMS non configuré côté serveur. Essaie l'onglet Email ou la méthode SMS.", false);
+      else setStatus("Échec : "+(e.message||"réessaie"), false);
+    }
+  };
+
+  /* --- Actions Téléphone + SMS OTP --- */
+  const bSmsSend = $("#auth-sms-send");
+  if(bSmsSend) bSmsSend.onclick = async ()=>{
+    const phone = cleanPhone($("#auth-phone").value);
+    if(!validPhone(phone)){ setStatus("Numéro invalide.", false); return; }
+    setStatus("Envoi du code SMS…");
+    bSmsSend.disabled = true;
+    try{
+      await Cloud.sendSmsCode(phone, true);
+      setStatus("✅ Code envoyé à <b>"+escapeHtml(phone)+"</b>. Regarde tes SMS.", true);
+      const v = $("#auth-sms-verify"); if(v) v.style.display = "block";
+    }catch(e){
+      const m = (e.message||"").toLowerCase();
+      if(m.includes("sms") || m.includes("provider")) setStatus("⚠️ Les SMS ne sont pas encore activés sur ce serveur. Choisis « Mot de passe » ou l'onglet Email.", false);
+      else if(m.includes("rate")) setStatus("Trop de tentatives. Attends 1 minute.", false);
+      else setStatus("Échec : "+(e.message||"réessaie"), false);
+      bSmsSend.disabled = false;
+    }
+  };
+  const bSmsVerify = $("#auth-sms-verify-btn");
+  if(bSmsVerify) bSmsVerify.onclick = async ()=>{
+    const phone = cleanPhone($("#auth-phone").value);
+    const code = ($("#auth-sms-code").value||"").replace(/\s/g,"");
+    if(!/^\d{4,8}$/.test(code)){ setStatus("Code invalide (4 à 8 chiffres).", false); return; }
+    setStatus("Vérification…");
+    try{
+      await Cloud.verifySmsCode(phone, code, "sms");
+      setStatus("✅ Connecté", true); setTimeout(openCloudSheet, 700);
+    }catch(e){
+      setStatus("Code incorrect ou expiré. Renvoie un nouveau code.", false);
+    }
+  };
+  const bSmsResend = $("#auth-sms-resend");
+  if(bSmsResend) bSmsResend.onclick = ()=>{ if(bSmsSend){ bSmsSend.disabled=false; bSmsSend.click(); } };
+
+  /* --- Actions Email + magic link --- */
+  const bEmMagic = $("#auth-email-magic");
+  if(bEmMagic) bEmMagic.onclick = async ()=>{
+    const email = ($("#auth-email").value||"").trim();
+    if(!validEmail(email)){ setStatus("Email invalide.", false); return; }
+    setStatus("Envoi du lien…");
+    bEmMagic.disabled = true;
+    try{
+      await Cloud.sendMagicLink(email);
+      setStatus("✅ Lien envoyé à <b>"+escapeHtml(email)+"</b>.<br>Ouvre tes emails (regarde aussi les spams).", true);
+    }catch(e){
+      const m = (e.message||"").toLowerCase();
+      if(m.includes("rate")) setStatus("Trop de tentatives. Attends 1 minute.", false);
+      else setStatus("Échec : "+(e.message||"vérifie l'email"), false);
+      bEmMagic.disabled = false;
+    }
+  };
+
+  /* --- Actions Email + mot de passe --- */
+  const bEmSignIn = $("#auth-email-signin");
+  if(bEmSignIn) bEmSignIn.onclick = async ()=>{
+    const email = ($("#auth-email").value||"").trim();
+    const pw = $("#auth-pw").value;
+    if(!validEmail(email)){ setStatus("Email invalide.", false); return; }
+    if(!pw){ setStatus("Entre ton mot de passe.", false); return; }
+    setStatus("Connexion…");
+    try{ await Cloud.signInPassword(email, pw); setStatus("✅ Connecté", true); setTimeout(openCloudSheet, 700); }
+    catch(e){
+      const m = (e.message||"").toLowerCase();
+      if(m.includes("invalid") || m.includes("credentials")) setStatus("Email ou mot de passe incorrect.", false);
+      else setStatus("Échec : "+(e.message||"réessaie"), false);
+    }
+  };
+  const bEmSignUp = $("#auth-email-signup");
+  if(bEmSignUp) bEmSignUp.onclick = async ()=>{
+    const email = ($("#auth-email").value||"").trim();
+    const pw = $("#auth-pw").value;
+    if(!validEmail(email)){ setStatus("Email invalide.", false); return; }
+    if(!pw || pw.length < 6){ setStatus("Mot de passe : 6 caractères min.", false); return; }
+    setStatus("Création…");
+    try{
+      await Cloud.signUp(email, pw);
+      if(Cloud.session()){ setStatus("✅ Compte créé et connecté", true); setTimeout(openCloudSheet, 700); }
+      else setStatus("✅ Compte créé. Vérifie ton email pour confirmer.", true);
+    }catch(e){
+      const m = (e.message||"").toLowerCase();
+      if(m.includes("already") || m.includes("registered")) setStatus("Cet email est déjà utilisé.", false);
+      else setStatus("Échec : "+(e.message||"réessaie"), false);
+    }
+  };
+  const bEmForgot = $("#auth-email-forgot");
+  if(bEmForgot) bEmForgot.onclick = async ()=>{
+    const email = ($("#auth-email").value||"").trim();
+    if(!validEmail(email)){ setStatus("Entre ton email d'abord.", false); return; }
+    setStatus("Envoi du lien de récupération…");
+    try{
+      await Cloud.resetPassword(email);
+      setStatus("✅ Email de récupération envoyé. Regarde tes emails.", true);
+    }catch(e){
+      setStatus("Échec : "+(e.message||"réessaie"), false);
+    }
+  };
+}
+
 async function openCloudSheet(){
   const sheet=$("#sheet"); sheet.innerHTML="";
   const head=el("div","sheet-head",`<h3>${ic("cloud")} Espace en ligne</h3><button class='x' id='sheet-close'>×</button>`);
@@ -3998,99 +4344,7 @@ async function openCloudSheet(){
   const u = Cloud.user();
 
   if(!Cloud.session()){
-    // Vue login/signup — magic link par défaut, mot de passe en repli
-    sheet.appendChild(el("div","ps-note",
-      "Synchronise tes données entre tes téléphones, sauvegarde-les en ligne, invite tes collaborateurs. <b>Gratuit</b>."));
-
-    sheet.appendChild(el("div","pf-lbl","Ton adresse email"));
-    const emailInp=el("input","field"); emailInp.id="cl-email"; emailInp.type="email"; emailInp.autocomplete="email";
-    emailInp.placeholder="ton.email@exemple.com";
-    sheet.appendChild(emailInp);
-
-    const btnMagic=el("button","sheet-add",ic("send")+" Recevoir un lien par email");
-    btnMagic.id="cl-magic";
-    sheet.appendChild(btnMagic);
-
-    sheet.appendChild(el("div","ps-note",
-      "On t'envoie un lien à cliquer — pas de mot de passe à retenir. C'est la méthode la plus simple, et la plus sûre."));
-
-    const status=el("div","ps-note"); status.id="cl-status"; status.style.marginTop="10px";
-    sheet.appendChild(status);
-
-    // Zone repliée : mot de passe (pour ceux qui préfèrent)
-    const toggle=el("button","plus-item","J'ai déjà un mot de passe ▾");
-    toggle.style.marginTop="16px";
-    sheet.appendChild(toggle);
-
-    const pwBlock=el("div","cl-pw-block");
-    pwBlock.style.display="none";
-    pwBlock.innerHTML=`
-      <div class="pf-lbl" style="margin-top:12px">Mot de passe (6 caractères minimum)</div>
-      <input class="field" id="cl-pw" type="password" autocomplete="current-password" placeholder="Ton mot de passe">
-      <button class="sheet-add" id="cl-signin" style="margin-top:8px">Se connecter</button>
-      <button class="plus-item" id="cl-signup" style="margin-top:8px">Créer un compte avec mot de passe</button>`;
-    sheet.appendChild(pwBlock);
-
-    toggle.onclick=()=>{
-      const shown=pwBlock.style.display==="block";
-      pwBlock.style.display=shown?"none":"block";
-      toggle.textContent=shown?"J'ai déjà un mot de passe ▾":"J'ai déjà un mot de passe ▴";
-    };
-
-    function validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
-    function setStatus(t,ok){
-      const s=$("#cl-status"); if(!s) return;
-      s.innerHTML=t;
-      s.style.color = ok===false?"#f96":ok===true?"#7c7":"";
-    }
-
-    btnMagic.onclick=async()=>{
-      const email=$("#cl-email").value.trim();
-      if(!validEmail(email)){ setStatus("Cette adresse email n'a pas l'air correcte",false); return; }
-      setStatus("Envoi du lien en cours…");
-      btnMagic.disabled=true;
-      try{
-        await Cloud.sendMagicLink(email);
-        setStatus("✅ Lien envoyé à <b>"+escapeHtml(email)+"</b>.<br>Ouvre ta boîte email (regarde aussi les spams) et clique sur le lien. L'app se connectera automatiquement.",true);
-      }catch(e){
-        const msg=(e.message||"").toLowerCase();
-        if(msg.includes("rate")) setStatus("Trop de tentatives. Attends 1 minute et réessaie.",false);
-        else setStatus("Échec de l'envoi : "+(e.message||"vérifie ton adresse email"),false);
-        btnMagic.disabled=false;
-      }
-    };
-
-    setTimeout(()=>{
-      const s=$("#cl-signin"); const su=$("#cl-signup");
-      if(s) s.onclick=async()=>{
-        const email=$("#cl-email").value.trim(); const pw=$("#cl-pw").value;
-        if(!validEmail(email)){ setStatus("Email invalide",false); return; }
-        if(!pw){ setStatus("Entre ton mot de passe",false); return; }
-        setStatus("Connexion…");
-        try{ await Cloud.signInPassword(email, pw); setStatus("✅ Connecté",true); setTimeout(openCloudSheet,700); }
-        catch(e){
-          const m=(e.message||"").toLowerCase();
-          if(m.includes("invalid") || m.includes("credentials")) setStatus("Email ou mot de passe incorrect. Essaie plutôt le lien par email.",false);
-          else setStatus("Échec : "+(e.message||"réessaie"),false);
-        }
-      };
-      if(su) su.onclick=async()=>{
-        const email=$("#cl-email").value.trim(); const pw=$("#cl-pw").value;
-        if(!validEmail(email)){ setStatus("Email invalide",false); return; }
-        if(!pw || pw.length<6){ setStatus("Mot de passe : 6 caractères minimum",false); return; }
-        setStatus("Création du compte…");
-        try{
-          await Cloud.signUp(email, pw);
-          if(Cloud.session()){ setStatus("✅ Compte créé et connecté",true); setTimeout(openCloudSheet,700); }
-          else setStatus("✅ Compte créé.<br>Vérifie ton email pour confirmer, puis reviens ici.",true);
-        }catch(e){
-          const m=(e.message||"").toLowerCase();
-          if(m.includes("already") || m.includes("registered")) setStatus("Cet email est déjà utilisé. Utilise « Se connecter » ou le lien par email.",false);
-          else setStatus("Échec : "+(e.message||"réessaie"),false);
-        }
-      };
-    },0);
-
+    renderAuthSheet(sheet);
     $("#overlay").classList.add("on"); sheet.classList.add("on");
     return;
   }

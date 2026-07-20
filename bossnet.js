@@ -142,6 +142,69 @@
       });
       return data;
     },
+    /* --- AUTH PAR TÉLÉPHONE (Solution A : phone + password) --- */
+    async signUpPhone(phone, password, nom){
+      const data = await rawFetch("/auth/v1/signup", {
+        method: "POST",
+        body: { phone, password, data: nom ? {nom} : undefined },
+        noAuth: true
+      });
+      if(data.access_token){
+        saveSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: data.expires_at || Math.floor(Date.now()/1000)+(data.expires_in||3600),
+          user: data.user
+        });
+      }
+      return data;
+    },
+    async signInPhone(phone, password){
+      const data = await rawFetch("/auth/v1/token?grant_type=password", {
+        method: "POST",
+        body: { phone, password },
+        noAuth: true
+      });
+      saveSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: data.expires_at || Math.floor(Date.now()/1000)+(data.expires_in||3600),
+        user: data.user
+      });
+      return data;
+    },
+    /* --- AUTH PAR SMS (Solution B : phone + code SMS) --- */
+    async sendSmsOtp(phone, createUser){
+      return rawFetch("/auth/v1/otp", {
+        method: "POST",
+        body: { phone, create_user: !!createUser, channel: "sms" },
+        noAuth: true
+      });
+    },
+    async verifySmsOtp(phone, token, type){
+      const data = await rawFetch("/auth/v1/verify", {
+        method: "POST",
+        body: { phone, token, type: type || "sms" },
+        noAuth: true
+      });
+      if(data.access_token){
+        saveSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: data.expires_at || Math.floor(Date.now()/1000)+(data.expires_in||3600),
+          user: data.user
+        });
+      }
+      return data;
+    },
+    /* --- RÉCUPÉRATION MOT DE PASSE PAR EMAIL (Supabase natif) --- */
+    async resetPasswordEmail(email, redirectTo){
+      return rawFetch("/auth/v1/recover", {
+        method: "POST",
+        body: { email, options: redirectTo ? {email_redirect_to: redirectTo} : undefined },
+        noAuth: true
+      });
+    },
     async magicLink(email, redirectTo){
       return rawFetch("/auth/v1/otp", {
         method: "POST",
