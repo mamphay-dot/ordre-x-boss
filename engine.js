@@ -466,7 +466,7 @@ const DAY=86400000;
 /* ---------- PLANS D'ABONNEMENT (mars 2026) ---------- */
 const PLANS = {
   starter: {
-    id: "starter", name: "Starter", price: 2500, icon: "🥉",
+    id: "starter", name: "Starter", price: 2500, icon: "medal", iconColor:"#cd7f32",
     tagline: "Pour tester, ou petite activité",
     limits: {
       businesses: 1,
@@ -486,7 +486,7 @@ const PLANS = {
     }
   },
   business: {
-    id: "business", name: "Business", price: 5000, icon: "🥈",
+    id: "business", name: "Business", price: 5000, icon: "medal", iconColor:"#c0c0c0",
     tagline: "La majorité des maquis, boutiques, coiffures",
     limits: {
       businesses: 1,
@@ -506,7 +506,7 @@ const PLANS = {
     }
   },
   pro: {
-    id: "pro", name: "Pro", price: 10000, icon: "🥇",
+    id: "pro", name: "Pro", price: 10000, icon: "crown", iconColor:"#ffd700",
     tagline: "Business qui grandit, franchises, multi-points de vente",
     limits: {
       businesses: 1,
