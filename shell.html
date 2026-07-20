@@ -48,7 +48,9 @@
   b{color:var(--cream);font-weight:700}.muted2{color:var(--cream-dim);font-size:13px}
 
   /* TOPBAR */
-  .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px}
+  .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px;overflow-x:auto;scrollbar-width:none}
+  .topbar::-webkit-scrollbar{display:none}
+  .topbar > *{flex-shrink:0}
   .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1}
   .blogo .dot{color:var(--cream)}
   .admin-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:-6px 0 10px 0;scrollbar-width:none}
@@ -792,15 +794,19 @@
   }
 
   /* SM : MOBILE STANDARD (400-639) — layout par défaut */
-  /* Sur tout téléphone (< 640px), cloud-badge en icône seule pour laisser la place au nom du business */
+  /* Sur tout téléphone (< 640px), cloud-badge et theme en icône seule, profbtn flex */
   @media (max-width:639px){
-    .cloud-badge{font-size:0!important;padding:6px 9px;min-width:36px;justify-content:center;gap:0}
+    .topbar{gap:5px;padding:9px 10px}
+    .cloud-badge{font-size:0!important;padding:6px 8px;min-width:34px;width:34px;height:34px;justify-content:center;gap:0}
     .cloud-badge > .ic{width:16px;height:16px}
-    .profbtn{max-width:42%}
-    .profbtn .pn{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .profbtn .pm{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .topbar{gap:6px}
-    .nav-arrow{width:32px;height:32px;border-radius:9px}
+    .theme-toggle{width:34px;height:34px;font-size:16px}
+    .nav-arrow{width:30px;height:30px;border-radius:9px}
+    .blogo{font-size:20px}
+    .profbtn{flex:0 1 auto;min-width:0;padding:5px 8px;gap:6px;max-width:none}
+    .profbtn .pi{min-width:0;flex:1 1 auto}
+    .profbtn .pn{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cream)}
+    .profbtn .pm{font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .profbtn .car{flex-shrink:0}
   }
 
   /* MD : GRAND MOBILE / FOLD OUVERT / TABLETTE PORTRAIT (640-799) */
