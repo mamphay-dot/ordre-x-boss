@@ -2520,25 +2520,97 @@ async function acceptMonthlyUpdate(reason,silent){
   return m;
 }
 function openAbonnement(){
-  const counts=accountCounts();
-  const due=BOSS.billingDue(state.license,counts);
-  const st=BOSS.licenseStatus(state.license,counts.metiers,Date.now());
-  const sheet=$("#sheet");
-  const lignes=[];
-  if(due.base) lignes.push(["Abonnement de base",due.base]);
-  if(due.metierExtra) lignes.push([counts.metiers+" métiers (extra)",due.metierExtra]);
-  if(due.nbCollab) lignes.push([due.nbCollab+" collaborateur(s) × "+BOSS.fmtF(due.perC),due.collabs]);
-  if(due.nbCaisseExtra) lignes.push([due.nbCaisseExtra+" caisse(s) en + × "+BOSS.fmtF(due.perK),due.caisses]);
-  const echeance = st.state==="active"&&st.paidUntil ? new Date(st.paidUntil).toLocaleDateString("fr-FR") : (st.state==="trial"?("fin d'essai dans "+st.daysLeftTrial+" j"):"à régler");
-  sheet.innerHTML=`<div class="sheet-head"><h3>Abonnement mensuel</h3><button class="x" id="sheet-close" data-ic="close"></button></div>
-    <div class="abo-total"><span>Coût d'utilisation</span><b>${BOSS.fmtF(due.total)}</b><span class="abo-mois">/ mois</span></div>
-    <div class="abo-lines">${lignes.length?lignes.map(l=>`<div><span>${l[0]}</span><b>${BOSS.fmtF(l[1])}</b></div>`).join(""):`<div><span>Aucune fonction payante activée</span><b>0</b></div>`}</div>
-    <div class="abo-status">État : <b>${({trial:"Essai",active:"Actif",grace:"Paiement en attente",locked:"Bloqué"})[st.state]||st.state}</b> · Prochaine échéance : ${echeance}</div>
-    <div class="ps-note">Le coût se met à jour <b>automatiquement</b> quand tu actives une fonction : chaque collaborateur ajouté coûte ${BOSS.fmtF(due.perC)}/mois, chaque caisse supplémentaire ${BOSS.fmtF(due.perK)}/mois.</div>
-    <button class="plus-item" id="abo-treso">${ic("wallet")} Facturation automatique en multi-appareils : nécessite le serveur</button>`;
-  renderIcons(sheet);
-  $("#sheet-close").onclick=closeSheet;
-  const bt=$("#abo-treso"); if(bt) bt.onclick=()=>{ closeSheet(); };
+  const counts = accountCounts();
+  const bill = BOSS.billingV2(state.license, counts);
+  const plan = BOSS.currentPlan(state.license);
+  const st = BOSS.licenseStatus(state.license, counts.metiers, Date.now());
+  const stLabel = ({trial:"Essai gratuit", active:"Actif", grace:"Paiement en attente", locked:"Bloqué"})[st.state] || st.state;
+  const echeance = st.state==="trial" ? `Essai gratuit — encore ${st.daysLeftTrial} jour${st.daysLeftTrial>1?'s':''}` : st.paidUntil ? new Date(st.paidUntil).toLocaleDateString("fr-FR") : "à régler";
+  const sheet = $("#sheet");
+
+  const planCard = (p) => {
+    const isCurrent = p.id === plan.id;
+    const l = p.limits;
+    const lim = k => l[k] === -1 ? "Illimité" : l[k];
+    const features = [
+      `📦 ${lim("products")} produit${l.products===1?'':'s'}`,
+      l.salesPerMonth === -1 ? "💰 Ventes illimitées" : `💰 ${l.salesPerMonth} ventes/mois`,
+      l.aiMessagesPerDay === -1 ? "🤖 IA illimitée" : `🤖 ${l.aiMessagesPerDay} messages IA/jour`,
+      l.affichesPerMonth === -1 ? "🎨 Affiches IA illimitées" : (l.affichesPerMonth > 0 ? `🎨 ${l.affichesPerMonth} affiches IA/mois` : null),
+      l.cloudSync ? "☁️ Sauvegarde cloud multi-appareils" : null,
+      l.thermalPrint ? "🖨️ Impression thermal Bluetooth" : null,
+      l.cgaReports ? "📄 Rapports fiscaux CGA" : null,
+      l.alertes ? "⚠️ Alertes intelligentes" : null,
+      l.advancedStats ? "📊 Stats avancées + prévision trésorerie" : null,
+      l.collaborateurs === -1 ? "👥 Collaborateurs (+60% chacun)" : (l.collaborateurs > 0 ? `👥 ${l.collaborateurs} collabs` : null),
+      l.templatesMetier ? "🍗 Templates métier" : null,
+      l.catalogueShare ? "📤 Partage catalogue" : null,
+      l.support === "whatsapp-4h" ? "💬 Support prioritaire WhatsApp (< 4h)" : l.support === "whatsapp-24h" ? "💬 Support WhatsApp (24h)" : "✉️ Support email (48h)"
+    ].filter(Boolean);
+    return `
+      <div class="plan-card ${isCurrent?'on':''}" data-plan="${p.id}">
+        <div class="plan-head">
+          <div class="plan-icon">${p.icon}</div>
+          <div class="plan-name">${p.name}</div>
+          ${isCurrent?'<div class="plan-badge">Mon plan</div>':''}
+        </div>
+        <div class="plan-price">${new Intl.NumberFormat('fr-FR').format(p.price)} <small>F/mois</small></div>
+        <div class="plan-tagline">${escapeHtml(p.tagline)}</div>
+        <ul class="plan-feats">${features.map(f=>`<li>${escapeHtml(f)}</li>`).join("")}</ul>
+        ${isCurrent ? '' : `<button class="plan-cta" data-choose="${p.id}">Choisir ${p.name} → ${new Intl.NumberFormat('fr-FR').format(p.price)} F</button>`}
+      </div>
+    `;
+  };
+
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>💎 Mon abonnement</h3><button class="x" id="sheet-close">×</button></div>
+
+    <div class="abo-current">
+      <div class="abo-current-row">
+        <div><div class="ps-note" style="margin:0">Mon plan actuel</div><b style="font-size:18px">${plan.icon} ${plan.name}</b></div>
+        <div style="text-align:right"><div class="ps-note" style="margin:0">Statut</div><b style="color:${st.state==='locked'?'#f96':st.state==='trial'?'var(--gold)':'#7c7'}">${stLabel}</b></div>
+      </div>
+      <div class="abo-current-row" style="margin-top:8px">
+        <div><div class="ps-note" style="margin:0">${st.state==='trial'?'Fin essai':'Prochaine échéance'}</div><b>${echeance}</b></div>
+        <div style="text-align:right"><div class="ps-note" style="margin:0">Total mensuel</div><b style="color:var(--gold);font-size:20px">${new Intl.NumberFormat('fr-FR').format(bill.total)} F</b></div>
+      </div>
+    </div>
+
+    ${bill.total > plan.price ? `
+      <div class="abo-detail">
+        <div><span>${bill.businesses} business × ${new Intl.NumberFormat('fr-FR').format(plan.price)} F</span><b>${new Intl.NumberFormat('fr-FR').format(bill.businessCost)} F</b></div>
+        ${bill.collabs > 0 ? `<div><span>${bill.collabs} collab. × +60% (${new Intl.NumberFormat('fr-FR').format(Math.round(plan.price*0.6))} F)</span><b>${new Intl.NumberFormat('fr-FR').format(bill.collabCost)} F</b></div>` : ''}
+      </div>
+    ` : ''}
+
+    <div class="pf-lbl" style="margin-top:16px;font-size:14px;color:var(--gold)">Compare les 3 plans</div>
+    <div class="plans-grid">
+      ${Object.values(BOSS.PLANS).map(planCard).join('')}
+    </div>
+
+    <div class="ps-note" style="margin-top:14px;font-size:12.5px;line-height:1.5">
+      💡 <b>Comment se calcule la facture :</b><br>
+      1 business = prix du plan choisi<br>
+      Chaque business supplémentaire = même prix ajouté<br>
+      Chaque collaborateur = +60 % du prix du plan
+    </div>
+
+    <div id="abo-status" class="ps-note" style="margin-top:10px;min-height:18px"></div>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  sheet.querySelectorAll(".plan-cta").forEach(b => b.onclick = async () => {
+    const newPlanId = b.dataset.choose;
+    const target = BOSS.PLANS[newPlanId];
+    if(!confirm(`Passer au plan ${target.name} (${new Intl.NumberFormat('fr-FR').format(target.price)} F/mois) ?\n\nPaiement via Mobile Money ou virement (à configurer plus tard). Pour le moment, le nouveau plan s'active immédiatement.`)) return;
+    if(!state.license) state.license = BOSS.defaultLicense();
+    state.license.planId = newPlanId;
+    state.license.acceptedMonthly = BOSS.billingV2(state.license, accountCounts()).total;
+    state.license.acceptedAt = Date.now();
+    await persist();
+    $("#abo-status").innerHTML = `✅ Plan ${target.name} activé.`;
+    $("#abo-status").style.color = "#7c7";
+    setTimeout(openAbonnement, 700);
+  });
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 function openTeam(){

@@ -37,12 +37,12 @@ const lic=()=>JSON.parse(w.localStorage.getItem("boss:state:v1")).license;
   q("#reg-new").dispatchEvent(new w.Event("click"));await wait(150); // prompt -> Terrasse
   ok(lic().acceptedMonthly===5000,"2 collab + 1 caisse extra -> 5000/mois ("+lic().acceptedMonthly+")");
 
-  console.log("=== Écran Abonnement mensuel ===");
+  console.log("=== Écran Abonnement (plans BOSS Starter/Business/Pro) ===");
   q("#tab-plus").dispatchEvent(new w.Event("click"));await wait(60);
   q("#pl-abo").dispatchEvent(new w.Event("click"));await wait(100);
-  ok(q(".abo-total b").textContent.replace(/\s/g,"").includes("5000"),"total abonnement 5000 affiché");
-  ok(q(".abo-mois").textContent.includes("mois"),"libellé « / mois »");
-  ok(q(".abo-lines").textContent.includes("collaborateur"),"détail collaborateurs");
+  ok(q(".abo-current"),"la carte 'plan actuel' est affichée");
+  ok(qa(".plan-card").length===3,"3 plans affichés (Starter, Business, Pro)");
+  ok(doc.body.textContent.includes("Starter") && doc.body.textContent.includes("Business") && doc.body.textContent.includes("Pro"),"noms des 3 plans présents");
   q("#overlay").dispatchEvent(new w.Event("click"));await wait(40);
 
   console.log("=== Retrait d'un collaborateur -> coût baisse auto ===");

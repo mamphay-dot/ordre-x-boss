@@ -462,9 +462,109 @@ function mergeStates(local,remote){
 /* ---------- LICENCE / ESSAI / BLOCAGE ---------- */
 const LICENSE_PUBKEY={"kty":"EC","crv":"P-256","x":"0S_uw4Xa28STvQiadpqdqKO2rJ-kQkgZuyKhLHTX22M","y":"_cw4MZLL1BWfhRSI8P5kStwKFqdBZTy3bTQv8BG88iE","key_ops":["verify"],"ext":true};
 const DAY=86400000;
+
+/* ---------- PLANS D'ABONNEMENT (mars 2026) ---------- */
+const PLANS = {
+  starter: {
+    id: "starter", name: "Starter", price: 2500, icon: "🥉",
+    tagline: "Pour tester, ou petite activité",
+    limits: {
+      businesses: 1,
+      collaborateurs: 0,
+      products: 10,
+      salesPerMonth: 50,
+      aiMessagesPerDay: 10,
+      affichesPerMonth: 0,
+      cloudSync: false,
+      thermalPrint: false,
+      cgaReports: false,
+      advancedStats: false,
+      alertes: false,
+      templatesMetier: true,
+      catalogueShare: true,
+      support: "email-48h"
+    }
+  },
+  business: {
+    id: "business", name: "Business", price: 5000, icon: "🥈",
+    tagline: "La majorité des maquis, boutiques, coiffures",
+    limits: {
+      businesses: 1,
+      collaborateurs: -1,
+      products: 50,
+      salesPerMonth: -1,
+      aiMessagesPerDay: 50,
+      affichesPerMonth: 5,
+      cloudSync: true,
+      thermalPrint: true,
+      cgaReports: true,
+      advancedStats: false,
+      alertes: true,
+      templatesMetier: true,
+      catalogueShare: true,
+      support: "whatsapp-24h"
+    }
+  },
+  pro: {
+    id: "pro", name: "Pro", price: 10000, icon: "🥇",
+    tagline: "Business qui grandit, franchises, multi-points de vente",
+    limits: {
+      businesses: 1,
+      collaborateurs: -1,
+      products: 200,
+      salesPerMonth: -1,
+      aiMessagesPerDay: -1,
+      affichesPerMonth: -1,
+      cloudSync: true,
+      thermalPrint: true,
+      cgaReports: true,
+      advancedStats: true,
+      alertes: true,
+      templatesMetier: true,
+      catalogueShare: true,
+      support: "whatsapp-4h"
+    }
+  }
+};
+const COLLAB_SURCHARGE = 0.6; // +60% du prix du plan par collaborateur ajouté
+const TRIAL_DAYS = 30;         // 30 jours d'essai Pro
+
+function currentPlan(license){
+  const id = (license && license.planId) || "starter";
+  return PLANS[id] || PLANS.starter;
+}
+function planLimit(license, key){ return currentPlan(license).limits[key]; }
+function planCanUseFeature(license, key){
+  const v = planLimit(license, key);
+  return v === true || v === -1 || (typeof v === "number" && v > 0);
+}
+function isUnlimited(license, key){ return planLimit(license, key) === -1; }
+function billingV2(license, counts){
+  const plan = currentPlan(license);
+  const businesses = Math.max(1, counts.businesses || counts.metiers || 1);
+  const collabs = Math.max(0, counts.collaborateurs || 0);
+  const businessCost = plan.price * businesses;
+  const collabCost = Math.round(plan.price * COLLAB_SURCHARGE * collabs);
+  return {
+    planId: plan.id, planName: plan.name, planPrice: plan.price,
+    businesses, businessCost,
+    collabs, collabCost, collabSurcharge: COLLAB_SURCHARGE,
+    total: businessCost + collabCost
+  };
+}
+
 function defaultLicense(nowTs){
   nowTs=nowTs||Date.now();
-  return {installedAt:nowTs, trialDays:90, paidUntil:0, basePrice:0, extraMetierPrice:0, perCollaborateur:2000, perCaisse:1000, acceptedMonthly:0, acceptedAt:0, graceHours:48, lockedManually:false};
+  // 30 jours d'essai en Pro par défaut, puis bascule Starter
+  return {
+    installedAt: nowTs, trialDays: TRIAL_DAYS, paidUntil: 0,
+    planId: "pro", trialPlanId: "pro",
+    starterAfterTrial: true,
+    basePrice: 0, extraMetierPrice: 0,
+    perCollaborateur: 2000, perCaisse: 1000,  // legacy pour billingDue historique
+    acceptedMonthly: 0, acceptedAt: 0,
+    graceHours: 48, lockedManually: false
+  };
 }
 function monthlyCost(license,counts){ return billingDue(license,counts); }
 function licenseDue(license,metiers){
@@ -795,6 +895,6 @@ function makeChange(total,received){
 function ticketTotal(lines){ return (lines||[]).reduce((s,l)=>s+(l.prix||0)*(l.qty||1),0); }
 function ticketVolume(lines){ return (lines||[]).reduce((s,l)=>s+(l.qty||1),0); }
 
-const __API={METIERS,METIER_ORDER,detectMetier,parseAmounts,extractName,computeFinancials,coachInsights,fmtF,startConversation,conversationStep,applyPatch,blankProfile,presetProfile,normalize,suggestPrice,fallbackDescription,waCatalogueText,waLink,paymentRequestText,startOfDay,startOfMonth,sumCaisse,caisseTotals,carnetTotals,debtReminderText,serializeBackup,parseBackup,ensureProfile,lowStockItems,monthlyHistory,tvaDecompose,tvaMonth,buildPayment,mergeStates,LICENSE_PUBKEY,defaultLicense,licenseDue,licenseStatus,signLicenseToken,verifyLicenseToken,ROLES,ORDER_STATUSES,ORDER_FLOW,orderStatusLabel,nextOrderStatus,orderTotal,blankOrder,todayISO,deliveriesForDay,orderStats,orderConfirmText,deliveryOnWayText,satisfactionRequestText,parseAIjson,applyAIPatch,PIECE_TYPES,PAYMENT_CHANNELS,pieceTypeLabel,channelLabel,blankPiece,periodKey,periodLabel,filterPieces,groupPieces,pieceStats,pieceExamples,TREASURY_ACCOUNTS,treasuryBalances,accountMovements,movKey,reconcile,COLLAB_PERMS,defaultPermsForRole,blankCollaborateur,collabCan,billingDue,monthlyCost,makeChange,ticketTotal,ticketVolume};
+const __API={METIERS,METIER_ORDER,detectMetier,parseAmounts,extractName,computeFinancials,coachInsights,fmtF,startConversation,conversationStep,applyPatch,blankProfile,presetProfile,normalize,suggestPrice,fallbackDescription,waCatalogueText,waLink,paymentRequestText,startOfDay,startOfMonth,sumCaisse,caisseTotals,carnetTotals,debtReminderText,serializeBackup,parseBackup,ensureProfile,lowStockItems,monthlyHistory,tvaDecompose,tvaMonth,buildPayment,mergeStates,LICENSE_PUBKEY,defaultLicense,licenseDue,licenseStatus,signLicenseToken,verifyLicenseToken,ROLES,ORDER_STATUSES,ORDER_FLOW,orderStatusLabel,nextOrderStatus,orderTotal,blankOrder,todayISO,deliveriesForDay,orderStats,orderConfirmText,deliveryOnWayText,satisfactionRequestText,parseAIjson,applyAIPatch,PIECE_TYPES,PAYMENT_CHANNELS,pieceTypeLabel,channelLabel,blankPiece,periodKey,periodLabel,filterPieces,groupPieces,pieceStats,pieceExamples,TREASURY_ACCOUNTS,treasuryBalances,accountMovements,movKey,reconcile,COLLAB_PERMS,defaultPermsForRole,blankCollaborateur,collabCan,billingDue,monthlyCost,makeChange,ticketTotal,ticketVolume,PLANS,COLLAB_SURCHARGE,TRIAL_DAYS,currentPlan,planLimit,planCanUseFeature,isUnlimited,billingV2};
 if(typeof module!=="undefined" && module.exports){ module.exports=__API; }
 if(typeof window!=="undefined"){ window.BOSS=__API; }
