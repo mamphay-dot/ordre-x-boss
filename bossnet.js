@@ -413,6 +413,134 @@
     }
   };
 
+  /* ---------- SUPPORT (tickets utilisateurs) ---------- */
+  const SUPPORT_MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5 Mo
+
+  const support = {
+    MAX_ATTACHMENT_BYTES: SUPPORT_MAX_ATTACHMENT_BYTES,
+    async isSuperAdmin(){
+      if(!isConfigured() || !_session) return false;
+      try {
+        const r = await rpc("is_super_admin", {});
+        return r === true;
+      } catch(_){ return false; }
+    },
+    async unreadForUser(){
+      if(!isConfigured() || !_session) return 0;
+      try { return await rpc("support_unread_user", {}); } catch(_){ return 0; }
+    },
+    async unreadForAdmin(){
+      if(!isConfigured() || !_session) return 0;
+      try { return await rpc("support_unread_admin", {}); } catch(_){ return 0; }
+    },
+    async listMine(){
+      if(!isConfigured() || !_session) return [];
+      return db("support_tickets").select({user_id:"eq."+_session.user.id, order:"created_at.desc"});
+    },
+    async listAll(){
+      if(!isConfigured() || !_session) return [];
+      return db("support_ticket_overview").select({order:"created_at.desc"});
+    },
+    async get(id){
+      if(!isConfigured() || !_session) return null;
+      const rows = await db("support_tickets").select({id:"eq."+id, limit:"1"});
+      const t = Array.isArray(rows) ? rows[0] : rows;
+      if(!t) return null;
+      const messages = await db("support_ticket_messages").select({ticket_id:"eq."+id, order:"created_at.asc"});
+      return { ticket: t, messages: messages || [] };
+    },
+    async create({type, subject, message, attachments, contactPhone, contactEmail, appVersion, deviceInfo, organizationId}){
+      if(!isConfigured() || !_session) throw new Error("Connecte-toi d'abord au cloud pour envoyer un ticket.");
+      const row = {
+        user_id: _session.user.id,
+        type: type || "aide",
+        subject: String(subject||"").slice(0,200),
+        message: String(message||"").slice(0,5000),
+        attachments: Array.isArray(attachments) ? attachments : [],
+        contact_phone: contactPhone || null,
+        contact_email: contactEmail || (_session.user && _session.user.email) || null,
+        app_version: appVersion || null,
+        device_info: deviceInfo || null,
+        organization_id: organizationId || null
+      };
+      return db("support_tickets").insert(row);
+    },
+    async reply(ticketId, message, attachments, opts){
+      if(!isConfigured() || !_session) throw new Error("Connecte-toi d'abord.");
+      const row = {
+        ticket_id: ticketId,
+        author_id: _session.user.id,
+        from_admin: !!(opts && opts.fromAdmin),
+        message: String(message||"").slice(0,5000),
+        attachments: Array.isArray(attachments) ? attachments : []
+      };
+      return db("support_ticket_messages").insert(row);
+    },
+    async markReadByUser(ticketId){
+      if(!isConfigured() || !_session) return;
+      return db("support_tickets").update({unread_by_user: false}, {id:"eq."+ticketId, user_id:"eq."+_session.user.id});
+    },
+    async markReadByAdmin(ticketId){
+      if(!isConfigured() || !_session) return;
+      return db("support_tickets").update({unread_by_admin: false}, {id:"eq."+ticketId});
+    },
+    async setStatus(ticketId, status){
+      if(!isConfigured() || !_session) return;
+      const patch = { status };
+      if(status === "resolved" || status === "closed"){
+        patch.resolved_at = new Date().toISOString();
+        patch.resolved_by = _session.user.id;
+      }
+      return db("support_tickets").update(patch, {id:"eq."+ticketId});
+    },
+    async uploadAttachment(ticketIdOrNew, file){
+      if(!isConfigured() || !_session) throw new Error("Non connecté");
+      if(!file) throw new Error("Fichier manquant");
+      if(file.size > SUPPORT_MAX_ATTACHMENT_BYTES){
+        throw new Error("Pièce jointe trop grande (max 5 Mo). Poids : "+ Math.round(file.size/1024) +" ko");
+      }
+      const uid = _session.user.id;
+      const safe = String(file.name||"fichier").replace(/[^A-Za-z0-9._-]/g,"_").slice(0,80);
+      const stamp = Math.floor(Date.now()); // pas de Math.random() pour rester déterministe côté tests
+      const path = `${uid}/${ticketIdOrNew||"new"}/${stamp}-${safe}`;
+      const url = apiURL("/storage/v1/object/support-attachments/"+encodeURI(path));
+      await ensureFreshToken();
+      const res = await root.fetch(url, {
+        method: "POST",
+        headers: {
+          "apikey": CFG.anonKey,
+          "Authorization": "Bearer " + _session.access_token,
+          "Content-Type": file.type || "application/octet-stream",
+          "x-upsert": "true"
+        },
+        body: file
+      });
+      if(!res.ok){
+        let data; try { data = await res.json(); } catch(_){}
+        const msg = (data && (data.message || data.error)) || ("HTTP "+res.status);
+        throw new Error("Upload : "+msg);
+      }
+      return { path, name: file.name, type: file.type, size: file.size };
+    },
+    signedUrl(path, expiresSeconds){
+      // Retourne une promesse qui donne une URL signée (téléchargement)
+      if(!isConfigured() || !_session) return Promise.reject(new Error("Non connecté"));
+      const seconds = expiresSeconds || 3600;
+      return ensureFreshToken().then(()=>{
+        return root.fetch(apiURL("/storage/v1/object/sign/support-attachments/"+encodeURI(path)), {
+          method: "POST",
+          headers: {
+            "apikey": CFG.anonKey,
+            "Authorization": "Bearer " + _session.access_token,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({expiresIn: seconds})
+        }).then(r => r.ok ? r.json() : Promise.reject(new Error("Signature échouée")))
+          .then(d => CFG.url.replace(/\/+$/,"") + "/storage/v1" + d.signedURL);
+      });
+    }
+  };
+
   /* ---------- REALTIME (Supabase Phoenix Channels, minimal) ---------- */
   let _ws = null, _wsRef = 1, _wsHandlers = {}, _hbTimer = null, _reconnectTimer = null;
   function realtimeConnect(){
@@ -493,7 +621,7 @@
   const __API = {
     config: CFG,
     isConfigured,
-    auth, org, profiles, sync, realtime, db, rpc,
+    auth, org, profiles, sync, realtime, support, db, rpc,
     // Debug / tests
     __setSessionForTests(s){ _session = s; }
   };

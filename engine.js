@@ -141,19 +141,19 @@ function coachInsights(profile){
   const d=computeFinancials(profile);
   const items=[];
   const revenus=profile.revenus||[];
-  if(d.ca<=0){items.push({ic:"⚠️",txt:"Ajoute au moins une vente pour que je calcule ton business."});return {d,items};}
-  items.push({ic:"💡",txt:`Ton argent réel après tout payer, c'est ${fmtF(d.net)} — pas tes ${fmtF(d.ca)} de ventes.`});
-  if(d.net<0) items.push({ic:"🔴",txt:`Tu es en perte. Vends plus, ou réduis tes charges de ${fmtF(-d.net)}.`});
+  if(d.ca<=0){items.push({ic:"alert_circle",tone:"warn",txt:"Ajoute au moins une vente pour que je calcule ton business."});return {d,items};}
+  items.push({ic:"lightbulb",tone:"info",txt:`Ton argent réel après tout payer, c'est ${fmtF(d.net)} — pas tes ${fmtF(d.ca)} de ventes.`});
+  if(d.net<0) items.push({ic:"alert_circle",tone:"danger",txt:`Tu es en perte. Vends plus, ou réduis tes charges de ${fmtF(-d.net)}.`});
   const wm=revenus.filter(r=>r.qte>0&&r.prix>0).map(r=>({nom:r.nom,m:(r.prix-r.cout)/r.prix,vol:(r.prix-r.cout)*r.qte}));
   if(wm.length){
     const best=[...wm].sort((a,b)=>b.vol-a.vol)[0];
     const worst=[...wm].sort((a,b)=>a.m-b.m)[0];
-    items.push({ic:"🏆",txt:`${best.nom} est ta meilleure marge : ${fmtF(best.vol)}/mois. Mets-en plus en avant.`});
-    if(worst.m<0) items.push({ic:"🔴",txt:`Tu vends ${worst.nom} à perte. Chaque unité coûte plus qu'elle ne rapporte.`});
-    else if(worst.m<0.15&&wm.length>1) items.push({ic:"🟡",txt:`${worst.nom} ne laisse que ${Math.round(worst.m*100)} % de marge. Monte le prix ou baisse le coût.`});
+    items.push({ic:"star",tone:"ok",txt:`${best.nom} est ta meilleure marge : ${fmtF(best.vol)}/mois. Mets-en plus en avant.`});
+    if(worst.m<0) items.push({ic:"alert_circle",tone:"danger",txt:`Tu vends ${worst.nom} à perte. Chaque unité coûte plus qu'elle ne rapporte.`});
+    else if(worst.m<0.15&&wm.length>1) items.push({ic:"alert_circle",tone:"warn",txt:`${worst.nom} ne laisse que ${Math.round(worst.m*100)} % de marge. Monte le prix ou baisse le coût.`});
   }
-  if(d.ca>0&&d.cf/d.ca>0.5) items.push({ic:"🟡",txt:`Tes charges fixes mangent ${Math.round(d.cf/d.ca*100)} % de tes ventes. Surveille loyer et salaires.`});
-  if(d.net>0&&d.tauxNet>=0.2) items.push({ic:"✅",txt:`Belle santé : tu gardes ${Math.round(d.tauxNet*100)} % de chaque vente. Pense à investir.`});
+  if(d.ca>0&&d.cf/d.ca>0.5) items.push({ic:"alert_circle",tone:"warn",txt:`Tes charges fixes mangent ${Math.round(d.cf/d.ca*100)} % de tes ventes. Surveille loyer et salaires.`});
+  if(d.net>0&&d.tauxNet>=0.2) items.push({ic:"check",tone:"ok",txt:`Belle santé : tu gardes ${Math.round(d.tauxNet*100)} % de chaque vente. Pense à investir.`});
   return {d,items};
 }
 

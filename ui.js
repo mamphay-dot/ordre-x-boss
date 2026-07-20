@@ -553,7 +553,13 @@ function renderDash(){
   const low=BOSS.lowStockItems(p,5);
   if(low.length){ const li=el("li"); li.innerHTML=`<span class="b">${ic("stock")}</span><span>Stock bas : ${low.map(x=>escapeHtml(x.nom)+" ("+x.stock+")").join(", ")}. Pense à réapprovisionner.</span>`; ul.appendChild(li); }
   if(p.tva && p.tva.enabled){ const tm=BOSS.tvaMonth(p,Date.now()); const li=el("li"); li.innerHTML=`<span class="b">${ic("config")}</span><span>TVA collectée ce mois (${tm.rate}%) : <b>${BOSS.fmtF(tm.tvaCollectee)}</b> à reverser. CA HT : ${BOSS.fmtF(tm.ht)}.</span>`; ul.appendChild(li); }
-  items.forEach(it=>{ const li=el("li"); li.innerHTML=`<span class="b">${it.ic}</span><span>${escapeHtml(it.txt)}</span>`; ul.appendChild(li); });
+  items.forEach(it=>{
+    const li=el("li");
+    const toneCol = it.tone==="danger"?"#f19595":it.tone==="warn"?"#f3c162":it.tone==="ok"?"#7dd095":it.tone==="info"?"var(--gold)":"var(--cream)";
+    const iconHtml = ICON[it.ic] ? `<span class="b" style="color:${toneCol}">${ic(it.ic)}</span>` : `<span class="b">${it.ic}</span>`;
+    li.innerHTML = `${iconHtml}<span>${escapeHtml(it.txt)}</span>`;
+    ul.appendChild(li);
+  });
   // prix
   const pr=$("#d-prices"); pr.innerHTML="";
   // réel du mois (caisse) + impayés (carnet)
@@ -566,7 +572,7 @@ function renderDash(){
       <div class="rb-item"><div class="rb-k">Dépensé ce mois (réel)</div><div class="rb-v">${BOSS.fmtF(ct.depensesMois)}</div></div>
       <div class="rb-item"><div class="rb-k">On te doit</div><div class="rb-v ${kt.impaye>0?'warn':''}">${BOSS.fmtF(kt.impaye)}</div></div>`;
   }
-  if(!d.prices.length){ pr.innerHTML='<div class="muted2">Ajoute une vente pour voir le prix conseillé.</div>'; }
+  if(!d.prices.length){ pr.innerHTML=`<div class="muted2" style="display:flex;align-items:center;gap:8px">${ic("alert_circle")}<span>Ajoute au moins une vente pour voir le prix conseillé.</span></div>`; }
   d.prices.forEach(x=>{
     let cls="ok",label="Bonne marge";
     if(x.verdict==="bad"){cls="bad";label="À perte";} else if(x.verdict==="low"){cls="low";label="Trop bas";}
@@ -1000,6 +1006,7 @@ function openPlus(){
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
     <button class="plus-item" id="pl-tuto" style="border:1.5px solid var(--gold);color:var(--gold);font-weight:700">🎓 Revoir le tuto de l'application (10 images)</button>
     <button class="plus-item" id="pl-help">${ic("help")} Aide & tutoriel</button>
+    <button class="plus-item" id="pl-support">${ic("message")} Contacter BOSS (support)<span id="pl-support-badge" class="pl-badge" style="display:none">0</span></button>
     <button class="plus-item" id="pl-config">${ic("config")} Réglages détaillés (dont TVA)</button>
     <button class="plus-item" id="pl-export">${ic("export")} Exporter une sauvegarde</button>
     <button class="plus-item" id="pl-import">${ic("import")} Importer une sauvegarde</button>
@@ -1022,6 +1029,8 @@ function openPlus(){
   const plt=$("#pl-treso"); if(plt) plt.onclick=()=>{ closeSheet(); showView("tresorerie"); };
   const pli=$("#pl-identity"); if(pli) pli.onclick=()=>{ openIdentity(); };
   const plh=$("#pl-help"); if(plh) plh.onclick=()=>{ openHelp(); };
+  const plsup=$("#pl-support"); if(plsup) plsup.onclick=()=>{ openSupport(); };
+  refreshSupportBadge();
   const plt2=$("#pl-tuto"); if(plt2) plt2.onclick=()=>{ closeSheet(); openClassicTuto(); };
   $("#pl-clients").onclick=()=>{ closeSheet(); showView("clients"); };
   $("#pl-historique").onclick=()=>{ closeSheet(); showView("historique"); };
@@ -2293,21 +2302,407 @@ function openPieceEntry(idx){
 
 /* ============ AIDE / TUTORIEL ============ */
 const TUTO_STEPS=[
-  {t:"Bienvenue sur BOSS",d:"Ton assistant te pose des questions et configure ton business tout seul. Tu peux tout ajuster ensuite dans Réglages."},
-  {t:"Boutique",d:"Ajoute tes produits (photo + prix). Partage ton catalogue sur WhatsApp ou en PDF."},
-  {t:"Commandes & livraisons",d:"Prends la commande, planifie la livraison, et à la livraison BOSS encaisse et met à jour le stock automatiquement (paiement à la livraison)."},
-  {t:"Caisse & Carnet",d:"Note chaque vente et dépense. Le Carnet suit qui te doit de l'argent, avec relance WhatsApp."},
-  {t:"Pièces comptables",d:"Photographie tes factures, reçus et quittances. Elles se trient par type, mode de règlement et période."},
-  {t:"Tableau de bord",d:"Ton bénéfice, ton seuil de rentabilité, tes livraisons du jour et ta satisfaction client, d'un coup d'œil."}
+  {ic:"emoji_hi",t:"Bienvenue sur BOSS",d:"Ton assistant t'accompagne au démarrage : quelques questions, il configure ton business (activité, ventes types, charges). Ensuite tout est prêt et tu peux commencer à travailler."},
+  {ic:"boutique",t:"Boutique",d:"Ajoute tes produits ou services : photo, nom, prix. Tu peux générer la description et le prix conseillé automatiquement avec l'IA. Partage un produit par WhatsApp en un tap."},
+  {ic:"commandes",t:"Commandes & livraisons",d:"Prends la commande d'un client, planifie la livraison (adresse, jour, heure), assigne un livreur si tu as des collabs. Le client note sa satisfaction après livraison."},
+  {ic:"caisse",t:"Caisse & Carnet",d:"La Caisse note chaque vente et chaque dépense au comptant. Le Carnet suit ceux qui te doivent de l'argent (à crédit) et te permet de relancer d'un tap sur WhatsApp."},
+  {ic:"receipt",t:"Pièces comptables",d:"Photographie factures, reçus, quittances. Elles sont archivées avec date et montant, prêtes à être exportées pour ton comptable ou une déclaration fiscale."},
+  {ic:"dash",t:"Tableau de bord",d:"En un coup d'œil : ton vrai bénéfice du mois, ton CA, ta marge, ton seuil de rentabilité, et le coach BOSS qui te dit quoi faire en priorité."},
+  {ic:"stock",t:"Stock",d:"Suis les quantités restantes de chaque produit. BOSS te prévient quand un article passe sous le seuil pour que tu réapprovisionnes à temps."},
+  {ic:"bank",t:"Trésorerie & rapprochement bancaire",d:"Ta caisse cumulée vs ton relevé bancaire. BOSS détecte les écarts (paiement non enregistré, frais bancaires) et prédit ta trésorerie à J+30 pour anticiper."},
+  {ic:"clients",t:"Clients & Historique",d:"Fiche client : téléphone, adresse, historique de commandes et solde restant. Relance WhatsApp intégrée, notes personnelles, tri par ancienneté ou dépenses."},
+  {ic:"chart_up",t:"Statistiques & prévision",d:"Vues avancées : évolution du CA, meilleurs produits, saisonnalité, prévision de trésorerie sur 30 jours pour anticiper les mois creux et planifier les gros achats."},
+  {ic:"bell",t:"Alertes intelligentes",d:"BOSS te prévient tout seul : ventes en baisse, stock bas, trésorerie qui plonge, seuil atteint, journée record. Reste focus sur ce qui compte vraiment."},
+  {ic:"doc",t:"Rapports fiscaux CGA/CEA",d:"Génère un rapport prêt pour ton Centre de Gestion Agréé (Côte d'Ivoire) ou ton comptable : CA, achats, TVA, période au choix, exportable en PDF."},
+  {ic:"image",t:"Affiches IA",d:"Crée une affiche promo pour un produit ou une offre spéciale : l'IA écrit le texte et compose l'image. Prêt à partager sur WhatsApp Status ou Facebook."},
+  {ic:"share",t:"Partage catalogue",d:"Un lien unique pour ton catalogue en ligne : tes clients voient tes produits et te commandent directement par WhatsApp. Aucune boutique en ligne à gérer."},
+  {ic:"chef",t:"Templates métier",d:"Restaurant, salon, atelier, commerce, transport : des modèles pré-remplis (produits types, charges habituelles) pour démarrer en 2 minutes selon ton activité."},
+  {ic:"sparkle",t:"Mode Facile",d:"Gros boutons, texte lu à voix haute, dictée vocale. Idéal si tu es en mouvement, si tu partages ton téléphone, ou si tu es plus à l'aise à l'oral qu'à l'écrit."},
+  {ic:"crown",t:"Coach IA / BMC",d:"Le Business Model Canvas guidé : 9 questions simples, l'IA analyse ton business et te propose 3 actions concrètes pour vendre plus. À refaire tous les 3 mois."},
+  {ic:"diamond",t:"Mon abonnement",d:"Choisis ton plan : Starter (gratuit, essentiels), Business (fonctions avancées, IA), Pro (tout inclus, collaborateurs illimités). Paiement Mobile Money."},
+  {ic:"lock",t:"Sécurité",d:"Verrouillage automatique après 5 min d'inactivité. Déverrouillage par empreinte digitale ou Face ID. Tes données restent sur ton téléphone, chiffrées."},
+  {ic:"cloud",t:"Espace en ligne",d:"Optionnel : synchronise tes données sur plusieurs téléphones (patron + collaborateurs). Chacun voit ce que tu autorises (rôles et permissions). Sauvegarde cloud auto."}
 ];
 function openHelp(){
   const sheet=$("#sheet");
   sheet.innerHTML=`<div class="sheet-head"><h3>Aide & tutoriel</h3><button class="x" id="sheet-close" data-ic="close"></button></div>
-    <div class="tuto">${TUTO_STEPS.map((s,i)=>`<div class="tuto-step"><div class="tuto-n">${i+1}</div><div><div class="tuto-t">${s.t}</div><div class="tuto-d">${s.d}</div></div></div>`).join("")}</div>
+    <div class="tuto">${TUTO_STEPS.map((s,i)=>`<div class="tuto-step"><div class="tuto-n">${i+1}</div><div class="tuto-ic">${ic(s.ic||"help")}</div><div class="tuto-body"><div class="tuto-t">${s.t}</div><div class="tuto-d">${s.d}</div></div></div>`).join("")}</div>
     <div class="ps-note">Astuce : appuie longuement (ou touche l'icône <b>?</b>) sur un écran pour un rappel. Tu peux rouvrir ce tutoriel depuis « Plus ».</div>`;
   renderIcons(sheet);
   $("#sheet-close").onclick=closeSheet;
   $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   SUPPORT — Contacter BOSS (tickets utilisateurs)
+   ============================================================ */
+const SUPPORT_TYPES = [
+  {k:"bug",       label:"Bug / Problème",     ic:"warn",         color:"#e05555"},
+  {k:"suggestion",label:"Suggestion",         ic:"lightbulb",    color:"#c79b32"},
+  {k:"aide",      label:"Demande d'aide",     ic:"help",         color:"#5a86c9"},
+  {k:"critique",  label:"Critique / Avis",    ic:"message",      color:"#8a6a2a"}
+];
+const SUPPORT_STATUS_LBL = {open:"Ouvert", in_progress:"En cours", resolved:"Résolu", closed:"Fermé"};
+let __supportIsAdmin = false;
+let __supportViewAll = false;
+
+function supportNet(){
+  return (typeof Cloud!=="undefined" && Cloud.available() && Cloud.session()) ? window.BOSSNET : null;
+}
+
+async function refreshSupportBadge(){
+  const badge = $("#pl-support-badge");
+  if(!badge) return;
+  const N = supportNet(); if(!N || !N.support){ badge.style.display="none"; return; }
+  try {
+    const nb = await N.support.unreadForUser();
+    if(nb>0){ badge.textContent = nb>9?"9+":String(nb); badge.style.display=""; }
+    else badge.style.display="none";
+  } catch(_){ badge.style.display="none"; }
+}
+
+function openSupport(){
+  const sheet=$("#sheet");
+  const N = supportNet();
+  if(!N || !N.support){
+    sheet.innerHTML = `<div class="sheet-head"><h3>Contacter BOSS</h3><button class="x" id="sheet-close">×</button></div>
+      <div class="ps-note" style="margin-top:14px;text-align:center;padding:22px 14px">
+        ${ic("cloud")}<br><br>
+        Pour envoyer un ticket au support, tu dois d'abord te connecter à l'espace en ligne.
+      </div>
+      <button class="sheet-add" id="sup-cloud">${ic("cloud")} Se connecter à l'espace en ligne</button>`;
+    $("#sheet-close").onclick=closeSheet;
+    $("#sup-cloud").onclick=()=>{ closeSheet(); if(typeof openCloudSheet==="function") openCloudSheet(); };
+    renderIcons(sheet);
+    $("#overlay").classList.add("on"); sheet.classList.add("on");
+    return;
+  }
+  sheet.innerHTML = `<div class="sheet-head"><h3>${ic("message")} Contacter BOSS</h3><button class="x" id="sheet-close">×</button></div>
+    <div id="sup-body" class="sup-body"><div class="muted2" style="padding:16px;text-align:center">Chargement…</div></div>
+    <button class="sheet-add" id="sup-new" style="margin-top:12px">${ic("add")} Nouveau ticket</button>`;
+  $("#sheet-close").onclick=closeSheet;
+  $("#sup-new").onclick=openSupportNew;
+  renderIcons(sheet);
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+  loadSupportList();
+}
+
+async function loadSupportList(){
+  const body = $("#sup-body"); if(!body) return;
+  const N = supportNet(); if(!N || !N.support) return;
+  try {
+    __supportIsAdmin = await N.support.isSuperAdmin();
+  } catch(_){ __supportIsAdmin = false; }
+  let tickets = [];
+  try {
+    tickets = __supportIsAdmin && __supportViewAll
+      ? await N.support.listAll()
+      : await N.support.listMine();
+  } catch(e){
+    body.innerHTML = `<div class="ps-note" style="color:var(--danger)">Erreur de chargement : ${escapeHtml(e.message||"")}</div>`;
+    return;
+  }
+  const toggle = __supportIsAdmin ? `
+    <div class="sup-toggle">
+      <button class="sup-tog ${!__supportViewAll?'on':''}" data-v="mine">Mes tickets</button>
+      <button class="sup-tog ${__supportViewAll?'on':''}" data-v="all">Tous les tickets (admin)</button>
+    </div>` : "";
+  if(!tickets || !tickets.length){
+    body.innerHTML = toggle + `<div class="muted2" style="padding:22px 14px;text-align:center">
+      ${ic("message")}<br><br>Aucun ticket pour l'instant.<br>Clique sur « Nouveau ticket » pour poser une question.</div>`;
+  } else {
+    body.innerHTML = toggle + `<div class="sup-list">${tickets.map(t=>{
+      const type = SUPPORT_TYPES.find(x=>x.k===t.type) || SUPPORT_TYPES[2];
+      const stat = SUPPORT_STATUS_LBL[t.status] || t.status;
+      const when = fmtRelativeDate(t.created_at);
+      const unread = (__supportIsAdmin && __supportViewAll ? t.unread_by_admin : t.unread_by_user);
+      const who = (__supportIsAdmin && __supportViewAll && t.user_email) ? `<div class="sup-who">${escapeHtml(t.user_email)}</div>` : "";
+      return `<button class="sup-item ${unread?'unread':''}" data-id="${escapeAttr(t.id)}">
+        <div class="sup-item-ic" style="background:${type.color}22;color:${type.color}">${ic(type.ic)}</div>
+        <div class="sup-item-body">
+          <div class="sup-item-top"><span class="sup-item-t">${escapeHtml(t.subject)}</span><span class="sup-item-stat sup-stat-${t.status}">${stat}</span></div>
+          <div class="sup-item-sub">${escapeHtml((t.message||"").slice(0,90))}${(t.message||"").length>90?"…":""}</div>
+          <div class="sup-item-meta">${type.label} · ${when}${who?" · ":""}</div>
+          ${who}
+        </div>
+      </button>`;
+    }).join("")}</div>`;
+  }
+  renderIcons(body);
+  body.querySelectorAll(".sup-tog").forEach(b=>{
+    b.onclick=()=>{ __supportViewAll = (b.dataset.v==="all"); loadSupportList(); };
+  });
+  body.querySelectorAll(".sup-item").forEach(b=>{
+    b.onclick=()=>openSupportTicket(b.dataset.id);
+  });
+}
+
+function fmtRelativeDate(iso){
+  if(!iso) return "";
+  try {
+    const d = new Date(iso), now = new Date();
+    const diff = (now - d)/1000;
+    if(diff < 60) return "à l'instant";
+    if(diff < 3600) return Math.floor(diff/60)+" min";
+    if(diff < 86400) return Math.floor(diff/3600)+" h";
+    if(diff < 7*86400) return Math.floor(diff/86400)+" j";
+    return d.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+  } catch(_){ return ""; }
+}
+
+function openSupportNew(){
+  const sheet=$("#sheet");
+  sheet.innerHTML = `<div class="sheet-head"><h3>${ic("add")} Nouveau ticket</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="pf-lbl">Type de demande</div>
+    <div class="sup-types">${SUPPORT_TYPES.map((t,i)=>`
+      <button class="sup-type${i===2?' on':''}" data-k="${t.k}" style="--sup-c:${t.color}">
+        ${ic(t.ic)}<span>${t.label}</span>
+      </button>`).join("")}</div>
+    <div class="pf-lbl" style="margin-top:12px">Sujet (court)</div>
+    <input class="field" id="sup-subject" maxlength="200" placeholder="Ex : Je n'arrive pas à imprimer un ticket">
+    <div class="pf-lbl" style="margin-top:12px">Ta demande (détaillée)</div>
+    <textarea class="field" id="sup-msg" rows="5" maxlength="5000" placeholder="Décris ce qui se passe, ce que tu attendais, ce qui s'est passé à la place…" style="resize:vertical;font-family:inherit"></textarea>
+    <div class="pf-lbl" style="margin-top:12px">Pièces jointes (5 Mo max par fichier)</div>
+    <div class="sup-att-actions">
+      <button type="button" class="sup-att-b" id="sup-att-photo">${ic("camera")} Photo</button>
+      <button type="button" class="sup-att-b" id="sup-att-audio">${ic("mic")} Note vocale</button>
+      <button type="button" class="sup-att-b" id="sup-att-file">${ic("doc")} Fichier / vidéo</button>
+    </div>
+    <input type="file" id="sup-file-inp" accept="image/*,audio/*,video/*,application/pdf,application/zip,text/plain" multiple hidden>
+    <input type="file" id="sup-photo-inp" accept="image/*" capture="environment" hidden>
+    <div id="sup-att-list" class="sup-att-list"></div>
+    <div class="pf-lbl" style="margin-top:12px">Ton téléphone WhatsApp (facultatif)</div>
+    <input class="field" id="sup-phone" inputmode="tel" placeholder="Ex : +225 07 00 00 00 00">
+    <div id="sup-status" class="ps-note" style="min-height:20px;margin-top:10px"></div>
+    <button class="sheet-add" id="sup-send" style="margin-top:8px">${ic("send")} Envoyer le ticket</button>`;
+  $("#sheet-close").onclick=closeSheet;
+  renderIcons(sheet);
+
+  let selType = "aide";
+  const pending = []; // {file, path?, name, size, type, uploading, error}
+  let audioRec = null, audioChunks = [], audioBlob = null;
+
+  sheet.querySelectorAll(".sup-type").forEach(b=>{
+    b.onclick=()=>{
+      sheet.querySelectorAll(".sup-type").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on"); selType = b.dataset.k;
+    };
+  });
+
+  function renderAttList(){
+    const list = $("#sup-att-list");
+    if(!pending.length){ list.innerHTML=""; return; }
+    list.innerHTML = pending.map((p,i)=>`
+      <div class="sup-att ${p.error?'err':''}">
+        <div class="sup-att-ic">${ic(p.type&&p.type.startsWith("audio")?"mic":p.type&&p.type.startsWith("image")?"camera":p.type&&p.type.startsWith("video")?"truck":"doc")}</div>
+        <div class="sup-att-info">
+          <div class="sup-att-n">${escapeHtml(p.name)}</div>
+          <div class="sup-att-s">${(p.size/1024).toFixed(0)} ko${p.error?" — "+escapeHtml(p.error):""}</div>
+        </div>
+        <button class="sup-att-x" data-i="${i}" title="Retirer">×</button>
+      </div>`).join("");
+    renderIcons(list);
+    list.querySelectorAll(".sup-att-x").forEach(b=>b.onclick=()=>{ pending.splice(+b.dataset.i,1); renderAttList(); });
+  }
+
+  function addFile(file){
+    if(!file) return;
+    const MAX = (window.BOSSNET && window.BOSSNET.support && window.BOSSNET.support.MAX_ATTACHMENT_BYTES) || (5*1024*1024);
+    if(file.size > MAX){
+      pending.push({file, name:file.name, size:file.size, type:file.type, error:"Trop lourd (>"+Math.round(MAX/1024/1024)+" Mo)"});
+    } else {
+      pending.push({file, name:file.name, size:file.size, type:file.type});
+    }
+    renderAttList();
+  }
+
+  $("#sup-att-file").onclick = ()=>$("#sup-file-inp").click();
+  $("#sup-att-photo").onclick = ()=>$("#sup-photo-inp").click();
+  $("#sup-file-inp").onchange = (e)=>{ Array.from(e.target.files||[]).forEach(addFile); e.target.value=""; };
+  $("#sup-photo-inp").onchange = (e)=>{ Array.from(e.target.files||[]).forEach(addFile); e.target.value=""; };
+
+  const audioBtn = $("#sup-att-audio");
+  audioBtn.onclick = async ()=>{
+    if(audioRec && audioRec.state === "recording"){
+      audioRec.stop();
+      return;
+    }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      alert("Ton navigateur ne supporte pas l'enregistrement audio.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      audioChunks = [];
+      const mimeCandidates = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
+      const mime = mimeCandidates.find(m => typeof MediaRecorder!=="undefined" && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
+      audioRec = mime ? new MediaRecorder(stream, {mimeType:mime}) : new MediaRecorder(stream);
+      audioRec.ondataavailable = (e)=>{ if(e.data && e.data.size>0) audioChunks.push(e.data); };
+      audioRec.onstop = ()=>{
+        stream.getTracks().forEach(t=>t.stop());
+        const type = audioRec.mimeType || "audio/webm";
+        const ext = type.indexOf("mp4")>=0?"m4a":type.indexOf("ogg")>=0?"ogg":"webm";
+        audioBlob = new Blob(audioChunks, {type});
+        const f = new File([audioBlob], "note-vocale-"+Date.now()+"."+ext, {type});
+        addFile(f);
+        audioBtn.classList.remove("rec");
+        audioBtn.innerHTML = ic("mic")+" Note vocale";
+      };
+      audioRec.start();
+      audioBtn.classList.add("rec");
+      audioBtn.innerHTML = ic("close")+" Arrêter l'enregistrement";
+    } catch(e){
+      alert("Impossible d'accéder au micro : "+(e.message||e));
+    }
+  };
+
+  $("#sup-send").onclick = async ()=>{
+    const subject = ($("#sup-subject").value||"").trim();
+    const message = ($("#sup-msg").value||"").trim();
+    const phone = ($("#sup-phone").value||"").trim();
+    const status = $("#sup-status");
+    if(subject.length < 3){ status.innerHTML="Écris un sujet plus explicite."; status.style.color="var(--danger)"; return; }
+    if(message.length < 5){ status.innerHTML="Explique un peu ta demande."; status.style.color="var(--danger)"; return; }
+    const badFiles = pending.filter(p=>p.error);
+    if(badFiles.length){ status.innerHTML="Retire les pièces trop lourdes avant d'envoyer."; status.style.color="var(--danger)"; return; }
+
+    const N = supportNet();
+    if(!N || !N.support){ status.innerHTML="Connecte-toi d'abord à l'espace en ligne."; status.style.color="var(--danger)"; return; }
+
+    const btn = $("#sup-send"); btn.disabled = true;
+    status.style.color = "var(--cream-dim)";
+    try {
+      const attachments = [];
+      for(let i=0;i<pending.length;i++){
+        const p = pending[i];
+        status.textContent = `Envoi pièce ${i+1}/${pending.length} : ${p.name}…`;
+        const info = await N.support.uploadAttachment("new", p.file);
+        attachments.push(info);
+      }
+      status.textContent = "Envoi du ticket…";
+      const orgId = (typeof Cloud!=="undefined" && Cloud.currentOrgId && Cloud.currentOrgId()) || null;
+      const device = navigator.userAgent ? navigator.userAgent.slice(0,200) : "";
+      await N.support.create({
+        type: selType,
+        subject, message,
+        attachments,
+        contactPhone: phone || null,
+        organizationId: orgId,
+        appVersion: "boss-app v40+",
+        deviceInfo: device
+      });
+      status.style.color = "var(--gold)";
+      status.textContent = "Ticket envoyé ✓ Le support te répondra dans l'app.";
+      pending.length = 0; renderAttList();
+      setTimeout(()=>{ openSupport(); }, 900);
+    } catch(e){
+      status.style.color = "var(--danger)";
+      status.textContent = "Erreur : "+(e.message||e);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+async function openSupportTicket(id){
+  const sheet=$("#sheet");
+  const N = supportNet(); if(!N || !N.support) return;
+  sheet.innerHTML = `<div class="sheet-head"><h3>Chargement…</h3><button class="x" id="sheet-close">×</button></div>`;
+  $("#sheet-close").onclick=closeSheet;
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+  let data;
+  try { data = await N.support.get(id); }
+  catch(e){ sheet.innerHTML = `<div class="sheet-head"><h3>Erreur</h3><button class="x" id="sheet-close">×</button></div><div class="ps-note" style="color:var(--danger)">${escapeHtml(e.message||"")}</div>`; $("#sheet-close").onclick=closeSheet; return; }
+  if(!data || !data.ticket){ sheet.innerHTML = `<div class="sheet-head"><h3>Ticket introuvable</h3><button class="x" id="sheet-close">×</button></div>`; $("#sheet-close").onclick=closeSheet; return; }
+  const t = data.ticket;
+  const type = SUPPORT_TYPES.find(x=>x.k===t.type) || SUPPORT_TYPES[2];
+  const stat = SUPPORT_STATUS_LBL[t.status] || t.status;
+  const isAdmin = __supportIsAdmin;
+
+  // marquer comme lu
+  try { if(isAdmin) await N.support.markReadByAdmin(id); else await N.support.markReadByUser(id); }
+  catch(_){}
+  refreshSupportBadge();
+
+  const messagesHTML = data.messages.map(m=>{
+    const mine = m.author_id === (N.auth.user()&&N.auth.user().id);
+    const cls = m.from_admin ? "sup-msg-admin" : (mine ? "sup-msg-me" : "sup-msg-other");
+    return `<div class="sup-msg ${cls}">
+      <div class="sup-msg-body">${escapeHtml(m.message)}</div>
+      ${(m.attachments||[]).length?`<div class="sup-msg-atts">${m.attachments.map(a=>`<button class="sup-att-dl" data-p="${escapeAttr(a.path)}">${ic("doc")} ${escapeHtml(a.name)}</button>`).join("")}</div>`:""}
+      <div class="sup-msg-when">${m.from_admin?"Support BOSS · ":""}${fmtRelativeDate(m.created_at)}</div>
+    </div>`;
+  }).join("");
+
+  sheet.innerHTML = `
+    <div class="sheet-head">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <button class="x" id="sup-back" style="position:relative">←</button>
+        <span style="color:${type.color}">${ic(type.ic)}</span>
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.subject)}</span>
+      </h3>
+      <button class="x" id="sheet-close">×</button>
+    </div>
+    <div class="sup-ticket-meta">
+      <span class="sup-tag" style="background:${type.color}22;color:${type.color}">${type.label}</span>
+      <span class="sup-tag sup-stat-${t.status}">${stat}</span>
+      <span class="sup-tag muted">${fmtRelativeDate(t.created_at)}</span>
+    </div>
+    <div class="sup-msg sup-msg-me sup-msg-root">
+      <div class="sup-msg-body">${escapeHtml(t.message)}</div>
+      ${(t.attachments||[]).length?`<div class="sup-msg-atts">${t.attachments.map(a=>`<button class="sup-att-dl" data-p="${escapeAttr(a.path)}">${ic("doc")} ${escapeHtml(a.name)}</button>`).join("")}</div>`:""}
+    </div>
+    <div class="sup-thread">${messagesHTML}</div>
+    ${isAdmin?`<div class="sup-admin-bar">
+      <button class="plus-item mini" data-st="in_progress">${ic("clock")} En cours</button>
+      <button class="plus-item mini" data-st="resolved">${ic("check")} Résolu</button>
+      <button class="plus-item mini" data-st="closed">${ic("close")} Fermer</button>
+    </div>`:""}
+    ${(t.status==="closed" && !isAdmin) ? `<div class="ps-note" style="text-align:center;margin-top:10px">Ce ticket est fermé.</div>` : `
+      <div class="pf-lbl" style="margin-top:12px">Ta réponse</div>
+      <textarea class="field" id="sup-reply" rows="3" maxlength="5000" placeholder="Écris ta réponse…" style="resize:vertical;font-family:inherit"></textarea>
+      <button class="sheet-add" id="sup-reply-send" style="margin-top:8px">${ic("send")} Envoyer</button>
+    `}
+  `;
+  renderIcons(sheet);
+  $("#sheet-close").onclick=closeSheet;
+  $("#sup-back").onclick=openSupport;
+
+  // télécharger les pièces jointes (URL signée)
+  sheet.querySelectorAll(".sup-att-dl").forEach(b=>{
+    b.onclick = async ()=>{
+      const p = b.dataset.p;
+      try {
+        const url = await N.support.signedUrl(p, 3600);
+        window.open(url, "_blank");
+      } catch(e){ alert("Impossible d'ouvrir la pièce : "+(e.message||e)); }
+    };
+  });
+
+  if(isAdmin){
+    sheet.querySelectorAll(".sup-admin-bar [data-st]").forEach(b=>{
+      b.onclick = async ()=>{
+        try { await N.support.setStatus(id, b.dataset.st); openSupportTicket(id); }
+        catch(e){ alert("Erreur : "+(e.message||e)); }
+      };
+    });
+  }
+
+  const send = $("#sup-reply-send");
+  if(send) send.onclick = async ()=>{
+    const txt = ($("#sup-reply").value||"").trim();
+    if(txt.length < 1) return;
+    send.disabled = true;
+    try {
+      await N.support.reply(id, txt, [], {fromAdmin: isAdmin});
+      openSupportTicket(id);
+    } catch(e){
+      alert("Erreur : "+(e.message||e));
+      send.disabled = false;
+    }
+  };
 }
 
 function openCatalogues(){
@@ -3403,7 +3798,7 @@ function openBmcQuestion(idx){
     <div class="pf-lbl" style="margin-top:14px">Ta réponse (écris ou dicte à voix haute)</div>
     <textarea class="field" id="bmc-answer" rows="4" placeholder="${escapeAttr(q.ph)}" style="resize:vertical;font-family:inherit;font-size:14.5px;line-height:1.5">${escapeHtml(currentVal)}</textarea>
 
-    ${showMic ? `<button class="easy-mic" id="bmc-mic" style="margin-top:8px">${ic("mic")} Dicter ma réponse</button>` : ""}
+    ${showMic ? `<button class="easy-mic hold-mic" id="bmc-mic" style="margin-top:8px" title="Maintiens appuyé pour dicter, glisse à gauche pour annuler">${ic("mic")} <span class="hm-lbl">Maintiens pour dicter</span></button>` : ""}
     <button class="easy-mic" id="bmc-listen" style="margin-top:6px;background:none;border:1px solid var(--line);color:var(--cream)">${ic("speaker")} Écouter la question</button>
 
     <div class="bmc-nav">
@@ -3426,14 +3821,13 @@ function openBmcQuestion(idx){
   });
 
   const micBtn = $("#bmc-mic");
-  if(micBtn) micBtn.onclick = ()=>{
-    micBtn.classList.add("rec"); micBtn.textContent = "🔴 Parle maintenant…";
-    EasyMode.listen(txt=>{
-      const cur = ta.value.trim();
-      ta.value = cur ? cur + " " + txt : txt;
+  if(micBtn) HoldMic.attach(micBtn, {
+    onText:(txt)=>{
+      const c = ta.value.trim();
+      ta.value = c ? c + " " + txt : txt;
       saveField();
-    }, ()=>{ micBtn.classList.remove("rec"); micBtn.innerHTML = ic("mic") + " Dicter ma réponse"; });
-  };
+    }
+  });
 
   const listenBtn = $("#bmc-listen");
   if(listenBtn) listenBtn.onclick = ()=>{ EasyMode.speak(q.voice); };
@@ -3655,17 +4049,17 @@ function renderBmcCoachCard(){
   if(action){
     cardEl = document.createElement("div");
     cardEl.id = "bmc-coach-card"; cardEl.className = "bmc-coach-card";
-    cardEl.innerHTML = `<div class="bmc-coach-emoji">🎯</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Action stratégie du moment</div><div class="bmc-coach-t">${escapeHtml(String(action.text).slice(0,180))}</div></div>`;
+    cardEl.innerHTML = `<div class="bmc-coach-emoji">${ic("target")}</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Action stratégie du moment</div><div class="bmc-coach-t">${escapeHtml(String(action.text).slice(0,180))}</div></div>`;
     cardEl.onclick = ()=>openStrategie();
   } else if(filled === 0){
     cardEl = document.createElement("div");
     cardEl.id = "bmc-coach-card"; cardEl.className = "bmc-coach-card";
-    cardEl.innerHTML = `<div class="bmc-coach-emoji">🎯</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Découvre ta stratégie</div><div class="bmc-coach-t">9 questions simples + IA = 3 actions concrètes pour vendre plus. 5 min.</div></div>`;
+    cardEl.innerHTML = `<div class="bmc-coach-emoji">${ic("target")}</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Découvre ta stratégie</div><div class="bmc-coach-t">9 questions simples + IA = 3 actions concrètes pour vendre plus. 5 min.</div></div>`;
     cardEl.onclick = ()=>openStrategie();
   } else if(filled < BMC_BLOCKS.length){
     cardEl = document.createElement("div");
     cardEl.id = "bmc-coach-card"; cardEl.className = "bmc-coach-card";
-    cardEl.innerHTML = `<div class="bmc-coach-emoji">📝</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Stratégie en cours</div><div class="bmc-coach-t">${filled}/${BMC_BLOCKS.length} questions répondues. Reprends pour voir ta stratégie IA.</div></div>`;
+    cardEl.innerHTML = `<div class="bmc-coach-emoji">${ic("clipboard")}</div><div class="bmc-coach-txt"><div class="bmc-coach-lbl">Stratégie en cours</div><div class="bmc-coach-t">${filled}/${BMC_BLOCKS.length} questions répondues. Reprends pour voir ta stratégie IA.</div></div>`;
     cardEl.onclick = ()=>openStrategie();
   }
   if(cardEl) host.parentNode.insertBefore(cardEl, host);
@@ -5556,9 +5950,16 @@ function wire(){
   $("#chat-send").onclick=()=>{const v=$("#chat-input").value;$("#chat-input").value="";handleUser(v);};
   $("#chat-input").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();$("#chat-send").click();} });
   $("#chat-restart").onclick=()=>{ if(confirm("Recommencer la configuration de ce business ?")){ const p=cur(); p.revenus=[];p.charges=[]; persist(); startOnboard(); } };
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(SR){ const mic=$("#chat-mic"); mic.style.display="flex";
-    mic.onclick=()=>{ try{const rec=new SR(); rec.lang="fr-FR"; rec.onresult=ev=>{$("#chat-input").value=ev.results[0][0].transcript;}; rec.start();}catch(e){} };
+  if(typeof EasyMode!=="undefined" && EasyMode.canListen()){
+    const mic=$("#chat-mic");
+    if(mic){
+      mic.style.display="flex";
+      mic.classList.add("hold-mic");
+      mic.title="Maintiens appuyé pour dicter, glisse à gauche pour annuler";
+      HoldMic.attach(mic, {
+        onText:(txt)=>{ $("#chat-input").value = txt; $("#chat-input").focus(); }
+      });
+    }
   }
   $("#cfg-name").oninput=async e=>{ cur().name=e.target.value||"Mon business"; await persist(); renderTopbar(); };
   $("#cfg-addrev").onclick=addRev;
@@ -5640,6 +6041,192 @@ const EasyMode = {
     return r;
   }
 };
+
+/* ============================================================
+   HoldMic — micro type WhatsApp (appui long = enregistre,
+   relâcher = envoie, glisser à gauche = annule)
+   ============================================================ */
+const HoldMic = (function(){
+  const CANCEL_PX = 80;         // glissement horizontal minimum pour annuler
+  const START_HOLD_MS = 180;    // durée min de l'appui avant de considérer "hold"
+  let overlay=null, ring=null, timerEl=null, hintEl=null;
+
+  function ensureOverlay(){
+    if(overlay) return overlay;
+    overlay = document.createElement("div");
+    overlay.className = "hm-overlay";
+    overlay.innerHTML = `
+      <div class="hm-inner">
+        <div class="hm-left">
+          <div class="hm-dot" id="hm-dot">${(typeof ic==="function"?ic("mic"):"")}</div>
+          <div class="hm-timer" id="hm-timer">0:00</div>
+        </div>
+        <div class="hm-right">
+          <div class="hm-hint" id="hm-hint"><span class="hm-arrow">‹</span> Glisser pour annuler</div>
+        </div>
+      </div>
+      <div class="hm-cancel" id="hm-cancel">Relâcher pour annuler</div>
+    `;
+    document.body.appendChild(overlay);
+    ring = overlay.querySelector("#hm-dot");
+    timerEl = overlay.querySelector("#hm-timer");
+    hintEl = overlay.querySelector("#hm-hint");
+    return overlay;
+  }
+
+  function fmtSec(ms){
+    const s = Math.floor(ms/1000);
+    return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+  }
+
+  function attach(btn, opts){
+    if(!btn) return;
+    opts = opts || {};
+    if(!EasyMode.canListen()){
+      btn.classList.add("mic-unavail");
+      btn.title = "Micro non supporté par ton navigateur";
+      return;
+    }
+    // Réserver un état sur l'élément (évite double-attachement)
+    if(btn.__holdMicWired) return;
+    btn.__holdMicWired = true;
+
+    let rec=null, startTs=0, holdTimer=null, isHolding=false, aborted=false;
+    let startX=0, dragX=0, tickTimer=null, buffer="", cancelZone=false;
+
+    function updateTimer(){
+      if(timerEl) timerEl.textContent = fmtSec(Date.now()-startTs);
+    }
+    function updateDrag(){
+      const shift = Math.max(0, startX - dragX);
+      const inCancel = shift >= CANCEL_PX;
+      if(overlay){
+        overlay.classList.toggle("hm-in-cancel", inCancel);
+        if(hintEl){
+          hintEl.style.transform = `translateX(-${Math.min(shift,120)}px)`;
+          hintEl.style.opacity = String(Math.max(0.3, 1 - shift/140));
+        }
+      }
+      cancelZone = inCancel;
+    }
+    function stopUI(){
+      if(tickTimer){ clearInterval(tickTimer); tickTimer=null; }
+      if(overlay){
+        overlay.classList.remove("on","hm-in-cancel");
+        if(hintEl){ hintEl.style.transform=""; hintEl.style.opacity=""; }
+      }
+      btn.classList.remove("rec");
+    }
+    function startRec(){
+      isHolding = true;
+      aborted = false;
+      buffer = "";
+      startTs = Date.now();
+      ensureOverlay();
+      overlay.classList.add("on");
+      overlay.classList.remove("hm-in-cancel");
+      btn.classList.add("rec");
+      updateTimer();
+      tickTimer = setInterval(updateTimer, 250);
+
+      if(!EasyMode.canListen()){ return; }
+      try{
+        const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+        rec = new R();
+        rec.lang = (state.easyVoice && state.easyVoice.lang) || "fr-FR";
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        rec.onresult = (e)=>{
+          for(let i=e.resultIndex; i<e.results.length; i++){
+            const res = e.results[i];
+            if(res.isFinal) buffer += (buffer?" ":"") + (res[0].transcript||"");
+          }
+        };
+        rec.onerror = (e)=>{ /* ignoré, onend s'occupe de finaliser */ };
+        rec.onend = ()=>{
+          rec = null;
+          if(aborted){ stopUI(); if(opts.onCancel) opts.onCancel(); return; }
+          const text = buffer.trim();
+          stopUI();
+          if(text && opts.onText) opts.onText(text);
+          else if(!text && opts.onEmpty) opts.onEmpty();
+        };
+        rec.start();
+      }catch(e){
+        stopUI();
+        if(opts.onError) opts.onError(e);
+      }
+    }
+    function releaseRec(){
+      if(!isHolding) return;
+      isHolding = false;
+      if(cancelZone){
+        aborted = true;
+        if(rec){ try{ rec.abort(); }catch(_){ } }
+        else { stopUI(); if(opts.onCancel) opts.onCancel(); }
+      } else {
+        // trop court pour compter comme un vrai enregistrement
+        if(Date.now()-startTs < 350){
+          aborted = true;
+          if(rec){ try{ rec.abort(); }catch(_){ } }
+          else { stopUI(); }
+          if(opts.onTooShort) opts.onTooShort();
+          return;
+        }
+        if(rec){ try{ rec.stop(); }catch(_){ } }
+        else { stopUI(); }
+      }
+    }
+
+    function down(e){
+      // ignorer clic droit / touches multiples
+      if(e.button && e.button!==0) return;
+      const p = e.touches ? e.touches[0] : e;
+      startX = p.clientX; dragX = startX;
+      // léger délai pour éviter les mini-tap
+      holdTimer = setTimeout(()=>{ holdTimer=null; startRec(); }, START_HOLD_MS);
+      e.preventDefault();
+    }
+    function move(e){
+      const p = e.touches ? e.touches[0] : e;
+      dragX = p.clientX;
+      if(isHolding) updateDrag();
+    }
+    function up(e){
+      if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+      if(isHolding) releaseRec();
+    }
+    function leave(e){
+      if(isHolding){
+        // laisser le pointeur remonter n'importe où : ne pas annuler ici,
+        // on attend le pointerup / touchend global
+      }
+    }
+
+    // pointer events couvre souris + touch sur nav modernes ; fallback touch pour iOS
+    if("PointerEvent" in window){
+      btn.addEventListener("pointerdown", down);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    } else {
+      btn.addEventListener("touchstart", down, {passive:false});
+      window.addEventListener("touchmove", move, {passive:true});
+      window.addEventListener("touchend", up);
+      window.addEventListener("touchcancel", up);
+      btn.addEventListener("mousedown", down);
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    }
+    // empêcher le menu contextuel qui casse l'appui long sur mobile
+    btn.addEventListener("contextmenu", (e)=>e.preventDefault());
+    btn.setAttribute("role","button");
+    btn.setAttribute("aria-label","Appuie et maintiens pour enregistrer");
+  }
+
+  return { attach, ensureOverlay };
+})();
 
 /* Format simplifié des montants : 2 137 → "2 mille", 1 250 000 → "1 million 250 mille" */
 function simpleAmount(n){
@@ -5754,7 +6341,7 @@ function openEasyVente(){
       <div class="chips" id="ev-prods">${prods.map((r,i)=>`<button class="chip" data-i="${i}">${escapeHtml(r.nom)} · ${new Intl.NumberFormat("fr-FR").format(r.prix)} F</button>`).join("")}</div>`:""}
     <div class="pf-lbl" style="font-size:16px">Combien tu as reçu ?</div>
     <input class="field" id="ev-amount" type="number" inputmode="numeric" placeholder="0" style="font-size:26px;text-align:center;font-weight:800">
-    ${EasyMode.canListen()?`<button class="easy-mic" id="ev-mic">🎙️ Dire le montant</button>`:""}
+    ${EasyMode.canListen()?`<button class="easy-mic hold-mic" id="ev-mic">${ic("mic")} <span class="hm-lbl">Maintiens pour dire le montant</span></button>`:""}
     <button class="sheet-add" id="ev-save" style="background:#3a7d4f;font-size:18px">✓ Enregistrer la vente</button>
   `;
   $("#sheet-close").onclick=closeSheet;
@@ -5769,14 +6356,13 @@ function openEasyVente(){
     };
   });
   const mic=$("#ev-mic");
-  if(mic) mic.onclick=()=>{
-    mic.classList.add("rec"); mic.textContent="🔴 Parle maintenant…";
-    EasyMode.listen(txt=>{
+  if(mic) HoldMic.attach(mic, {
+    onText:(txt)=>{
       const digits=(txt.match(/\d[\d\s]*/g)||[]).join("").replace(/\s/g,"");
       const nb = digits ? parseInt(digits,10) : parseFrenchNumber(txt);
       if(nb>0){ $("#ev-amount").value=nb; EasyMode.speak(simpleAmount(nb)); }
-    }, ()=>{ mic.classList.remove("rec"); mic.textContent="🎙️ Dire le montant"; });
-  };
+    }
+  });
   $("#ev-save").onclick=async()=>{
     const montant=parseFloat($("#ev-amount").value)||0;
     if(montant<=0){ EasyMode.speak("Dis-moi combien tu as reçu"); $("#ev-amount").focus(); return; }
@@ -5799,21 +6385,20 @@ function openEasyDepense(){
     <input class="field" id="ed-amount" type="number" inputmode="numeric" placeholder="0" style="font-size:26px;text-align:center;font-weight:800">
     <div class="pf-lbl" style="font-size:16px">Pour quoi ? (facultatif)</div>
     <input class="field" id="ed-label" placeholder="Ex. charbon, transport, marchandise…">
-    ${EasyMode.canListen()?`<button class="easy-mic" id="ed-mic">🎙️ Dire ce que j'ai payé</button>`:""}
+    ${EasyMode.canListen()?`<button class="easy-mic hold-mic" id="ed-mic">${ic("mic")} <span class="hm-lbl">Maintiens pour dicter</span></button>`:""}
     <button class="sheet-add" id="ed-save" style="background:#8a3a3a;font-size:18px">✓ Enregistrer la dépense</button>
   `;
   $("#sheet-close").onclick=closeSheet;
   const mic=$("#ed-mic");
-  if(mic) mic.onclick=()=>{
-    mic.classList.add("rec"); mic.textContent="🔴 Parle maintenant…";
-    EasyMode.listen(txt=>{
+  if(mic) HoldMic.attach(mic, {
+    onText:(txt)=>{
       const digits=(txt.match(/\d[\d\s]*/g)||[]).join("").replace(/\s/g,"");
       const nb = digits ? parseInt(digits,10) : parseFrenchNumber(txt);
       if(nb>0) $("#ed-amount").value=nb;
       const label=txt.replace(/\d[\d\s]*/g,"").replace(/\s+/g," ").trim();
       if(label && label.length<80) $("#ed-label").value=label;
-    }, ()=>{ mic.classList.remove("rec"); mic.textContent="🎙️ Dire ce que j'ai payé"; });
-  };
+    }
+  });
   $("#ed-save").onclick=async()=>{
     const montant=parseFloat($("#ed-amount").value)||0;
     if(montant<=0){ EasyMode.speak("Dis-moi combien tu as payé"); $("#ed-amount").focus(); return; }
@@ -5858,7 +6443,7 @@ function openEasyAI(){
   sheet.innerHTML=`
     <div class="sheet-head"><h3>${ic("mic")} Parle à BOSS</h3><button class="x" id="sheet-close">×</button></div>
     <div style="text-align:center;padding:12px 0 6px;color:var(--cream-dim);font-size:14.5px">Appuie sur le micro et parle. Dis ce que tu veux :<br><i>"Combien j'ai gagné ?"</i>, <i>"Comment augmenter mes ventes ?"</i></div>
-    <button class="easy-mic" id="eai-mic" style="width:100%;padding:22px;font-size:18px;justify-content:center">🎙️ Parler maintenant</button>
+    <button class="easy-mic hold-mic" id="eai-mic" style="width:100%;padding:22px;font-size:18px;justify-content:center">${ic("mic")} <span class="hm-lbl">Maintiens pour parler</span></button>
     <div id="eai-heard" style="background:var(--char2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;color:var(--cream);font-size:15px;min-height:40px;font-style:italic"></div>
     <div id="eai-answer" style="background:var(--char);border:1px solid var(--gold);border-radius:12px;padding:14px;color:var(--cream);font-size:15.5px;line-height:1.5;min-height:40px"></div>
     <div style="text-align:center;margin-top:14px;color:var(--cream-dim);font-size:12.5px">${EasyMode.canListen()?"":"⚠️ Ton navigateur ne reconnaît pas la voix — écris ta question :"}</div>
@@ -5885,10 +6470,7 @@ function openEasyAI(){
     }
   }
   const mic=$("#eai-mic");
-  if(mic) mic.onclick=()=>{
-    mic.classList.add("rec"); mic.textContent="🔴 J'écoute…";
-    EasyMode.listen(txt=>ask(txt), ()=>{ mic.classList.remove("rec"); mic.textContent="🎙️ Parler maintenant"; });
-  };
+  if(mic) HoldMic.attach(mic, { onText:(txt)=>ask(txt) });
   const send=$("#eai-send"); if(send) send.onclick=()=>ask(($("#eai-txt").value||"").trim());
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }

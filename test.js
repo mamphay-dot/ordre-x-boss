@@ -50,7 +50,7 @@ f=E.computeFinancials(perte);
 near(f.net,-60000,"net négatif");
 ok(f.net<0,"perte détectée");
 const ci=E.coachInsights(perte);
-ok(ci.items.some(i=>i.ic==="🔴"),"coach signale la perte");
+ok(ci.items.some(i=>i.tone==="danger" || i.ic==="alert_circle"),"coach signale la perte");
 
 console.log("=== 5. Scénario vente à perte (prix < coût) ===");
 const aperte=E.blankProfile("t");
