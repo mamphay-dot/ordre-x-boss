@@ -984,6 +984,8 @@ function openPlus(){
     <button class="plus-item" id="pl-alertes">${ic("warn")} Alertes intelligentes</button>
     <button class="plus-item" id="pl-fiscal">${ic("doc")} Rapports fiscaux (CGA/CEA)</button>
     <button class="plus-item" id="pl-lock">${ic("lock")} Verrouiller BOSS maintenant</button>
+    <button class="plus-item" id="pl-security">${ic("config")} Sécurité (verrouillage auto)</button>
+    ${Cloud.available()&&Cloud.session()?`<button class="plus-item danger" id="pl-signout">${ic("close")} Se déconnecter du compte en ligne</button>`:""}
     <button class="plus-item" id="pl-bio">${ic("check")} Déverrouillage biométrique (Face ID / empreinte)</button>
     <button class="plus-item" id="pl-onboard">${ic("onboard")} Reconfigurer avec l'assistant IA</button>
     <button class="plus-item" id="pl-ai">${ic("ai")} Réglages de l'assistant IA</button>
@@ -1029,6 +1031,8 @@ function openPlus(){
   const plal=$("#pl-alertes"); if(plal) plal.onclick=()=>{ closeSheet(); openAlertes(); };
   const plfs=$("#pl-fiscal"); if(plfs) plfs.onclick=()=>{ closeSheet(); openFiscal(); };
   const pll=$("#pl-lock"); if(pll) pll.onclick=()=>{ closeSheet(); IdleLock.forceLockNow(); };
+  const plsec=$("#pl-security"); if(plsec) plsec.onclick=()=>{ closeSheet(); openSecurityConfig(); };
+  const plso=$("#pl-signout"); if(plso) plso.onclick=async()=>{ if(confirm("Se déconnecter du compte en ligne ? Tes données locales restent en place.")){ try{ await Cloud.signOut(); }catch(_){} closeSheet(); refreshAll(); }};
   const plb=$("#pl-bio"); if(plb) plb.onclick=()=>{ closeSheet(); openBioSetup(); };
   $("#pl-onboard").onclick=()=>{ closeSheet(); showView("onboard"); startOnboard(); };
   $("#pl-ai").onclick=()=>{ openAISettings(); };
@@ -3163,19 +3167,86 @@ const BioAuth=(function(){
   return { available, platformAvailable, enroll, verify, enrolled, disable: clearCredId, getCredId };
 })();
 
+function openSecurityConfig(){
+  const sheet = $("#sheet");
+  state.security = state.security || {};
+  const sec = state.security;
+  const delays = [
+    { v: 60*1000,    l: "1 minute" },
+    { v: 5*60*1000,  l: "5 minutes" },
+    { v: 15*60*1000, l: "15 minutes" },
+    { v: 30*60*1000, l: "30 minutes" },
+    { v: 60*60*1000, l: "1 heure" },
+    { v: 0, l: "Jamais (déconseillé)" }
+  ];
+  const currentMs = sec.idleMs || (5*60*1000);
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>${ic("lock")} Sécurité & verrouillage auto</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Protège BOSS quand tu laisses ton téléphone. Le déverrouillage se fait par ton code administrateur ou ta biométrie.</div>
+
+    <div class="pf-lbl">Verrouillage automatique après inactivité</div>
+    <select class="field" id="sec-idle">
+      ${delays.map(d=>`<option value="${d.v}" ${currentMs===d.v?'selected':''}>${escapeHtml(d.l)}</option>`).join("")}
+    </select>
+
+    <label class="switch-row" style="margin-top:12px">
+      <div><b>Verrouiller quand l'écran du téléphone se verrouille</b><br><span style="color:var(--cream-dim);font-size:12px">Fortement recommandé sur mobile</span></div>
+      <input type="checkbox" id="sec-onhide" ${sec.lockOnHide!==false?'checked':''}>
+    </label>
+
+    <label class="switch-row" style="margin-top:8px">
+      <div><b>Activer le verrouillage automatique</b><br><span style="color:var(--cream-dim);font-size:12px">Nécessite un code administrateur</span></div>
+      <input type="checkbox" id="sec-enable" ${sec.idleLock!==false?'checked':''}>
+    </label>
+
+    <div class="ps-note" style="margin-top:10px">${state.admin?.pin?"✅ Code administrateur défini.":"⚠️ Aucun code admin — le verrouillage ne peut pas s'activer. Va dans Plus → Espace administrateur."}</div>
+
+    <div class="ps-note" style="margin-top:8px">${BioAuth.enrolled()?'👆 Biométrie activée pour déverrouiller.':'💡 Active la biométrie (Face ID/empreinte) pour déverrouiller plus vite.'}</div>
+
+    <button class="sheet-add" id="sec-save" style="margin-top:14px">Enregistrer</button>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#sec-save").onclick = async ()=>{
+    sec.idleMs = parseInt($("#sec-idle").value, 10) || 0;
+    sec.idleLock = $("#sec-enable").checked;
+    sec.lockOnHide = $("#sec-onhide").checked;
+    await persist();
+    closeSheet();
+  };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
 const IdleLock=(function(){
-  const IDLE_MS_DEFAULT = 15*60*1000; // 15 min
+  const IDLE_MS_DEFAULT = 5*60*1000; // 5 min par défaut
   let lastActivity = Date.now();
   let timer = null;
   let locked = false;
+  let hiddenAt = 0;
   function idleMs(){ return (state.security && state.security.idleMs) || IDLE_MS_DEFAULT; }
   function isEnabled(){ return !(state.security && state.security.idleLock===false) && !!state.admin?.pin; }
+  function lockOnHide(){ return !(state.security && state.security.lockOnHide===false); }
   function bump(){ lastActivity = Date.now(); }
   function start(){
     if(timer) return;
-    ["mousemove","keydown","touchstart","click","scroll","visibilitychange"].forEach(ev=>{
+    ["mousemove","keydown","touchstart","click","scroll"].forEach(ev=>{
       try{ document.addEventListener(ev, bump, {passive:true, capture:true}); }catch(_){}
     });
+    // Verrouillage immédiat quand l'app passe en arrière-plan (écran verrouillé / autre app)
+    try{
+      document.addEventListener("visibilitychange", ()=>{
+        if(document.visibilityState === "hidden"){ hiddenAt = Date.now(); }
+        else if(document.visibilityState === "visible" && hiddenAt > 0){
+          const away = Date.now() - hiddenAt;
+          hiddenAt = 0;
+          if(lockOnHide() && isEnabled() && away >= 1500){ lock(); }
+          else { bump(); }
+        }
+      }, {passive: true});
+      // Sur mobile PWA : quand la fenêtre perd le focus → potentiellement verrouiller
+      window.addEventListener("pagehide", ()=>{
+        if(lockOnHide() && isEnabled()){ hiddenAt = Date.now(); }
+      }, {passive: true});
+    }catch(_){}
     timer = setInterval(check, 20000);
   }
   function check(){
