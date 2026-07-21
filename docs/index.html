@@ -4330,13 +4330,18 @@ const Cloud = (function(){
 
   async function pushLocal(){
     if(!available() || !session() || !orgId) return false;
+    // Enfile d'abord dans la queue résiliente (si le push échoue, l'entry reste)
+    try { SyncQueue.enqueue({type:"pushProfiles", data:state.profiles, orgId, ts:Date.now()}); } catch(_){}
     try {
       setStatus("syncing");
       await NET.profiles.pushMany(orgId, state.profiles);
+      // Push réussi : on peut vider la queue des entries obsolètes de même type
+      try { SyncQueue.drain("pushProfiles"); } catch(_){}
       setStatus("online");
       return true;
     } catch(e){
       setStatus("offline");
+      // Entry reste dans SyncQueue, sera réessayée quand internet revient
       return false;
     }
   }
@@ -7652,6 +7657,126 @@ function renderAdminLicence(body){
 /* ============================================================
    CoachOffline — moteur de règles locales + cache offline-first
    ============================================================ */
+/* ============================================================
+   SyncQueue — queue résiliente des mutations non pushées
+   Persiste dans IndexedDB, drain auto quand internet revient.
+   ============================================================ */
+const SyncQueue = (function(){
+  const KEY = "boss:sync:queue";
+  const MAX_ENTRIES = 100;
+  const RETRY_DELAYS = [2000, 5000, 15000, 60000, 300000]; // 2s, 5s, 15s, 1min, 5min
+  let listeners = [];
+
+  function loadQ(){
+    try {
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch(_){ return []; }
+  }
+  function saveQ(q){
+    try {
+      const trimmed = q.slice(-MAX_ENTRIES);
+      localStorage.setItem(KEY, JSON.stringify(trimmed));
+    } catch(_){}
+    listeners.forEach(fn => { try { fn(trimmed || q); } catch(_){} });
+  }
+  function enqueue(entry){
+    if(!entry) return;
+    const q = loadQ();
+    // Dédoublonnage : si même type que la dernière entry, on remplace (last-write-wins)
+    if(q.length && q[q.length-1].type === entry.type){
+      q[q.length-1] = { ...entry, id: q[q.length-1].id, retries: 0 };
+    } else {
+      q.push({ ...entry, id: "q_"+Date.now().toString(36)+Math.random().toString(36).slice(2,7), retries: 0 });
+    }
+    saveQ(q);
+  }
+  function drain(type){
+    // Vide la queue pour un type donné (appelé après un push réussi)
+    const q = loadQ().filter(e => e.type !== type);
+    saveQ(q);
+  }
+  function size(){ return loadQ().length; }
+  function pending(){ return loadQ(); }
+  function onChange(fn){ listeners.push(fn); return () => { listeners = listeners.filter(x=>x!==fn); }; }
+
+  async function retryAll(){
+    if(typeof Cloud === "undefined" || !Cloud.available || !Cloud.available() || !Cloud.session() || !Cloud.currentOrgId()) return;
+    if(!navigator.onLine) return;
+    const q = loadQ();
+    if(!q.length) return;
+    // Regroupe par type et rejoue le plus récent de chaque type
+    const byType = {};
+    q.forEach(e => { byType[e.type] = e; });
+    for(const type of Object.keys(byType)){
+      try {
+        if(type === "pushProfiles"){
+          await Cloud.pushLocal();
+        }
+      } catch(e){
+        // Incrémente les retries, garde dans la queue
+        const nq = loadQ().map(x => x.type === type ? { ...x, retries: (x.retries||0)+1 } : x);
+        saveQ(nq);
+      }
+    }
+  }
+
+  function isOnline(){ return typeof navigator !== "undefined" ? navigator.onLine !== false : true; }
+
+  // Auto-drain sur retour d'internet
+  if(typeof window !== "undefined"){
+    window.addEventListener("online", () => { setTimeout(retryAll, 500); });
+    // Retour dans l'app (autre app fermée, écran déverrouillé)
+    document.addEventListener("visibilitychange", () => {
+      if(document.visibilityState === "visible") setTimeout(retryAll, 800);
+    });
+    // Retry périodique adaptatif : 30s si des entries en attente
+    setInterval(() => { if(size() > 0 && isOnline()) retryAll(); }, 30000);
+  }
+
+  return { enqueue, drain, size, pending, onChange, retryAll, isOnline };
+})();
+
+/* ---------- Badge de sync dans la topbar ---------- */
+function updateSyncBadge(){
+  const badge = document.getElementById("cloud-badge");
+  if(!badge) return;
+  const isOnline = SyncQueue.isOnline();
+  const pending = SyncQueue.size();
+  const hasCloud = typeof Cloud !== "undefined" && Cloud.available && Cloud.available();
+  const isSession = hasCloud && Cloud.session();
+
+  badge.classList.remove("cb-off","cb-on","cb-sync","cb-warn","cb-err");
+  if(!hasCloud){
+    badge.classList.add("cb-off");
+    badge.innerHTML = ic("cloud") + " Local";
+    badge.title = "Espace en ligne non configuré (mode local pur)";
+  } else if(!isSession){
+    badge.classList.add("cb-off");
+    badge.innerHTML = ic("user") + " Se connecter";
+    badge.title = "Non connecté à l'espace en ligne";
+  } else if(!isOnline){
+    badge.classList.add("cb-warn");
+    badge.innerHTML = ic("cloud") + (pending > 0 ? " " + pending : "");
+    badge.title = pending > 0 ? `Hors-ligne : ${pending} modification(s) seront synchronisées à la reconnexion.` : "Hors-ligne";
+  } else if(pending > 0){
+    badge.classList.add("cb-sync");
+    badge.innerHTML = ic("refresh") + " " + pending;
+    badge.title = `${pending} modification(s) en cours de synchronisation…`;
+  } else {
+    badge.classList.add("cb-on");
+    badge.innerHTML = ic("check");
+    badge.title = "Synchronisé avec le cloud";
+  }
+}
+
+if(typeof window !== "undefined"){
+  window.addEventListener("online", updateSyncBadge);
+  window.addEventListener("offline", updateSyncBadge);
+  try { SyncQueue.onChange(updateSyncBadge); } catch(_){}
+  document.addEventListener("visibilitychange", updateSyncBadge);
+}
+
 const CoachOffline = (function(){
   const CACHE_KEY = "boss:coach:cache";
   const CACHE_MAX = 20;
@@ -10109,6 +10234,8 @@ window.addEventListener("DOMContentLoaded",async()=>{
   renderTopbar();
   enforceLicense();
   IdleLock.start();
+  // Badge de synchronisation dans la topbar : état temps réel
+  try { updateSyncBadge(); setInterval(updateSyncBadge, 5000); } catch(_){}
   applyMenuCustomization();
   const p=cur();
   if(state.easyMode){
