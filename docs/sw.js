@@ -1,5 +1,23 @@
-const CACHE = "boss-v43";
+const CACHE = "boss-v45";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
+
+// Background Sync API — Chrome/Android peut réveiller le SW pour drain la queue
+// même quand BOSS est fermé ou en arrière-plan. Aucun effet sur iOS Safari.
+self.addEventListener("sync", async (event) => {
+  if (event.tag === "boss-drain-queue" || event.tag === "boss-sync") {
+    event.waitUntil((async () => {
+      // Notifie tous les clients ouverts pour qu'ils drainent leur SyncQueue
+      const clientsList = await self.clients.matchAll({includeUncontrolled:true, type:"window"});
+      if (clientsList.length > 0) {
+        clientsList.forEach(c => c.postMessage({type:"sync-drain"}));
+      } else {
+        // Aucun client ouvert : on tente de rejouer via l'API Supabase directement
+        // en utilisant les tokens dans caches (si backup token existant)
+        // Fallback minimal — le vrai drain reprendra à l'ouverture de l'app.
+      }
+    })());
+  }
+});
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));

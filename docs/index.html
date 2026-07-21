@@ -3227,6 +3227,8 @@ function showView(v){
   NavHistory.push(v);
   enforceLicense();
   window.scrollTo({top:0,behavior:"smooth"});
+  // Log de consultation → activity_log (offline-safe)
+  try { if(typeof ActivityLog !== "undefined") ActivityLog.log("view", v || "unknown", { profile: (cur() ? cur().id : null) }); } catch(_){}
 }
 
 /* ---------- Barre profils ---------- */
@@ -4330,11 +4332,31 @@ const Cloud = (function(){
 
   async function pushLocal(){
     if(!available() || !session() || !orgId) return false;
+    // OPTIMISATION E : diff — n'envoie que les profils modifiés depuis le dernier sync
+    const lastSyncedAt = (state.cloud && state.cloud.lastSyncedAt) || 0;
+    const toPush = {};
+    let changedCount = 0;
+    Object.keys(state.profiles).forEach(id => {
+      const p = state.profiles[id];
+      if((p.updatedAt || 0) > lastSyncedAt){
+        toPush[id] = p;
+        changedCount++;
+      }
+    });
+    // Premier push ou aucune donnée modifiée → tout envoyer (ou rien)
+    if(lastSyncedAt === 0){
+      Object.assign(toPush, state.profiles);
+      changedCount = Object.keys(toPush).length;
+    }
+    if(changedCount === 0){ setStatus("online"); return true; }
+
     // Enfile d'abord dans la queue résiliente (si le push échoue, l'entry reste)
-    try { SyncQueue.enqueue({type:"pushProfiles", data:state.profiles, orgId, ts:Date.now()}); } catch(_){}
+    try { SyncQueue.enqueue({type:"pushProfiles", data:toPush, orgId, ts:Date.now(), count:changedCount}); } catch(_){}
     try {
       setStatus("syncing");
-      await NET.profiles.pushMany(orgId, state.profiles);
+      await NET.profiles.pushMany(orgId, toPush);
+      // Marque le sync réussi
+      state.cloud = Object.assign({}, state.cloud, {lastSyncedAt: Date.now()});
       // Push réussi : on peut vider la queue des entries obsolètes de même type
       try { SyncQueue.drain("pushProfiles"); } catch(_){}
       setStatus("online");
@@ -7690,6 +7712,13 @@ const SyncQueue = (function(){
       q.push({ ...entry, id: "q_"+Date.now().toString(36)+Math.random().toString(36).slice(2,7), retries: 0 });
     }
     saveQ(q);
+    // Enregistre un Background Sync (Chrome/Android) : le SW réveillera BOSS
+    // pour drain la queue même si l'app est fermée
+    try {
+      if("serviceWorker" in navigator && "SyncManager" in window){
+        navigator.serviceWorker.ready.then(reg => reg.sync.register("boss-drain-queue")).catch(()=>{});
+      }
+    } catch(_){}
   }
   function drain(type){
     // Vide la queue pour un type donné (appelé après un push réussi)
@@ -7736,6 +7765,106 @@ const SyncQueue = (function(){
 
   return { enqueue, drain, size, pending, onChange, retryAll, isOnline };
 })();
+
+/* ============================================================
+   ActivityLog — trace consultations + actions clés (RGPD-safe)
+   Écrit local d'abord, drainé vers Supabase via SyncQueue.
+   ============================================================ */
+const ActivityLog = (function(){
+  const LOCAL_KEY = "boss:activity:queue";
+  const MAX_LOCAL = 500;
+  let sessionId = null;
+
+  function getSessionId(){
+    if(sessionId) return sessionId;
+    try {
+      sessionId = sessionStorage.getItem("boss:session:id");
+      if(!sessionId){
+        sessionId = "s_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+        sessionStorage.setItem("boss:session:id", sessionId);
+      }
+    } catch(_){ sessionId = "s_ephemeral"; }
+    return sessionId;
+  }
+  function deviceKind(){
+    const ua = (navigator.userAgent||"").toLowerCase();
+    if(/iphone|ipad|ipod/.test(ua)) return "iphone";
+    if(/android/.test(ua)) return "android";
+    if(/windows|mac|linux/.test(ua)) return "desktop";
+    return "other";
+  }
+  function loadLocal(){ try { return JSON.parse(localStorage.getItem(LOCAL_KEY)||"[]"); } catch(_){ return []; } }
+  function saveLocal(arr){
+    try {
+      const trimmed = arr.slice(-MAX_LOCAL);
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(trimmed));
+    } catch(_){}
+  }
+  function log(type, name, meta){
+    const entry = {
+      event_type: type,
+      event_name: String(name||"").slice(0,50),
+      meta: meta || {},
+      session_id: getSessionId(),
+      device_kind: deviceKind(),
+      ts: new Date().toISOString()
+    };
+    // Ajoute au buffer local (même hors ligne)
+    const arr = loadLocal(); arr.push(entry); saveLocal(arr);
+    // Enfile un push pour drain quand internet + cloud
+    try { SyncQueue.enqueue({type:"pushActivity", ts:Date.now()}); } catch(_){}
+  }
+  async function drain(){
+    if(typeof Cloud === "undefined" || !Cloud.available() || !Cloud.session()) return false;
+    const N = (typeof window !== "undefined" && window.BOSSNET) ? window.BOSSNET : null;
+    if(!N) return false;
+    const orgId = Cloud.currentOrgId ? Cloud.currentOrgId() : null;
+    const arr = loadLocal();
+    if(!arr.length) return true;
+    const sess = Cloud.session();
+    const userId = sess && sess.user ? sess.user.id : null;
+    if(!userId) return false;
+    // Prépare les rows
+    const rows = arr.map(e => ({
+      user_id: userId,
+      organization_id: orgId || null,
+      event_type: e.event_type,
+      event_name: e.event_name,
+      meta: e.meta || {},
+      session_id: e.session_id,
+      device_kind: e.device_kind,
+      ts: e.ts
+    }));
+    try {
+      // Insert direct via l'API REST Supabase (bossnet expose fetch générique via db)
+      // On utilise fetch directement pour éviter d'ajouter une méthode dans bossnet
+      const cfg = window.__BOSS_SUPABASE__ || {};
+      if(!cfg.url || !cfg.anonKey) return false;
+      const resp = await fetch(cfg.url + "/rest/v1/activity_log", {
+        method: "POST",
+        headers: {
+          "apikey": cfg.anonKey,
+          "Authorization": "Bearer " + sess.access_token,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify(rows)
+      });
+      if(!resp.ok) return false;
+      // Vide le buffer local (les rows sont côté serveur maintenant)
+      saveLocal([]);
+      return true;
+    } catch(_){ return false; }
+  }
+  function pendingCount(){ return loadLocal().length; }
+  return { log, drain, pendingCount, getSessionId };
+})();
+
+/* Drain périodique + sur online */
+if(typeof window !== "undefined"){
+  window.addEventListener("online", () => { setTimeout(()=>{ try { ActivityLog.drain(); } catch(_){} }, 1500); });
+  setInterval(() => { if(navigator.onLine !== false) try { ActivityLog.drain(); } catch(_){} }, 60000);
+}
 
 /* ---------- Badge de sync dans la topbar ---------- */
 function updateSyncBadge(){
@@ -10278,6 +10407,12 @@ window.addEventListener("DOMContentLoaded",async()=>{
       });
       let _reloaded=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloaded)return; _reloaded=true; location.reload(); });
+      // Le SW nous notifie quand un Background Sync se déclenche → drain
+      navigator.serviceWorker.addEventListener("message", (ev)=>{
+        if(ev.data && ev.data.type === "sync-drain"){
+          try { SyncQueue.retryAll(); } catch(_){}
+        }
+      });
     }catch(e){}
   }
   // synchronisation au démarrage
