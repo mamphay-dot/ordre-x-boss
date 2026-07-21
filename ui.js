@@ -212,6 +212,7 @@ async function restore(){
   if(!state.easyVoice){ state.easyVoice={enabled:true, lang:"fr-FR"}; created=true; }
   if(typeof state.easyTutoDone !== "boolean"){ state.easyTutoDone=false; created=true; }
   if(typeof state.classicTutoDone !== "boolean"){ state.classicTutoDone=false; created=true; }
+  if(typeof state.planWizardDone !== "boolean"){ state.planWizardDone=false; created=true; }
   if(state.ai && !state.ai.provider){ state.ai.provider=(state.ai.url&&state.ai.url.includes("anthropic"))?"anthropic":(state.ai.key?"anthropic":"pollinations"); created=true; }
   // Business Model Canvas — 9 blocs + stratégie IA (par profil business)
   Object.values(state.profiles||{}).forEach(p=>{
@@ -523,6 +524,7 @@ function renderDash(){
   const p=cur();
   const {d,items}=BOSS.coachInsights(p);
   renderBmcCoachCard();
+  renderTrialBanner();
   $("#d-net").textContent=BOSS.fmtF(d.net);
   $("#d-net").className="big "+(d.net>=0?"pos":"neg");
   $("#d-netnote").innerHTML = d.ca<=0 ? "Configure tes ventes pour voir ton bénéfice."
@@ -3016,6 +3018,143 @@ function showUpgradePopup(featureLabel, targetPlan){
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 
+/* ============================================================
+   Wizard de sélection de plan : 4 questions → recommandation
+   ============================================================ */
+const PLAN_WIZARD_QUESTIONS = [
+  {
+    key: "products",
+    q: "Combien de produits ou services tu vends ?",
+    options: [
+      { label: "Moins de 10", val: "small", scores: {petit:2, boss:0, grand:0} },
+      { label: "Entre 10 et 50", val: "med", scores: {petit:0, boss:2, grand:0} },
+      { label: "Plus de 50", val: "big", scores: {petit:-2, boss:1, grand:2} }
+    ]
+  },
+  {
+    key: "team",
+    q: "Tu as des employés qui enregistrent aussi les ventes ?",
+    options: [
+      { label: "Non, je travaille seul(e)", val: "solo", scores: {petit:2, boss:0, grand:0} },
+      { label: "1 ou 2 personnes", val: "small", scores: {petit:-2, boss:2, grand:1} },
+      { label: "3 personnes ou plus", val: "big", scores: {petit:-3, boss:1, grand:3} }
+    ]
+  },
+  {
+    key: "devices",
+    q: "Tu utilises plusieurs téléphones / tablettes pour ton business ?",
+    options: [
+      { label: "Non, juste ce téléphone", val: "one", scores: {petit:2, boss:0, grand:0} },
+      { label: "Oui, 2-3 appareils", val: "few", scores: {petit:-2, boss:2, grand:1} },
+      { label: "Oui, plusieurs points de vente", val: "many", scores: {petit:-3, boss:0, grand:3} }
+    ]
+  },
+  {
+    key: "reports",
+    q: "Tu as besoin de rapports pour ton comptable (CGA) ?",
+    options: [
+      { label: "Pas encore", val: "no", scores: {petit:1, boss:0, grand:0} },
+      { label: "Oui, de temps en temps", val: "sometimes", scores: {petit:-1, boss:2, grand:1} },
+      { label: "Oui, tous les mois", val: "always", scores: {petit:-2, boss:1, grand:2} }
+    ]
+  }
+];
+
+let __planWizard = { step: 0, answers: {} };
+
+function openPlanWizard(){
+  __planWizard = { step: 0, answers: {} };
+  renderPlanWizard();
+}
+
+function renderPlanWizard(){
+  const w = __planWizard;
+  const sheet = $("#sheet");
+  if(w.step >= PLAN_WIZARD_QUESTIONS.length){
+    return renderPlanRecommendation();
+  }
+  const q = PLAN_WIZARD_QUESTIONS[w.step];
+  const total = PLAN_WIZARD_QUESTIONS.length;
+  const dots = PLAN_WIZARD_QUESTIONS.map((_,i)=>`<span class="tuto-dot${i<=w.step?' on':''}${i===w.step?' cur':''}"></span>`).join("");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>🤔 Quel plan te convient ?</h3><button class="x" id="sheet-close">×</button></div>
+    <div class="ps-note">Question <b>${w.step+1}/${total}</b> — dis-moi ce qui décrit le mieux ton business.</div>
+    <div class="tuto-dots" style="margin:8px 0 14px">${dots}</div>
+    <h3 style="font-family:'Archivo';font-weight:800;font-size:19px;margin:0 0 12px;line-height:1.3">${escapeHtml(q.q)}</h3>
+    <div class="pw-opts">
+      ${q.options.map((o,i)=>`
+        <button class="pw-opt" data-i="${i}">
+          <div class="pw-opt-label">${escapeHtml(o.label)}</div>
+        </button>
+      `).join("")}
+    </div>
+    ${w.step > 0 ? `<button class="plus-item" id="pw-back" style="margin-top:14px">← Précédent</button>` : ''}
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  const bk = $("#pw-back"); if(bk) bk.onclick = ()=>{ w.step = Math.max(0, w.step-1); renderPlanWizard(); };
+  sheet.querySelectorAll(".pw-opt").forEach(b => b.onclick = ()=>{
+    const idx = +b.dataset.i;
+    w.answers[q.key] = q.options[idx];
+    w.step++;
+    renderPlanWizard();
+  });
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+function renderPlanRecommendation(){
+  const w = __planWizard;
+  const scores = {petit:0, boss:0, grand:0};
+  Object.values(w.answers).forEach(ans => {
+    Object.keys(ans.scores).forEach(k => scores[k] += ans.scores[k]);
+  });
+  const recommended = Object.keys(scores).sort((a,b) => scores[b]-scores[a])[0];
+  const rec = BOSS.PLANS[recommended];
+  const sheet = $("#sheet");
+  const others = ["petit","boss","grand"].filter(k => k !== recommended);
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>🎯 Ta recommandation</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:16px 12px 10px">
+      <div style="color:${rec.iconColor};font-size:56px;line-height:1;margin-bottom:8px">${ic(rec.icon,"xxl")}</div>
+      <div style="font-family:'Archivo';font-weight:800;font-size:22px">Le plan idéal pour toi :</div>
+      <div style="font-family:'Archivo';font-weight:900;font-size:32px;color:${rec.iconColor};margin-top:2px">${escapeHtml(rec.name)}</div>
+      <div style="color:var(--gold);font-family:'Archivo';font-weight:800;font-size:24px;margin-top:4px">${new Intl.NumberFormat('fr-FR').format(rec.price)} F/mois</div>
+      <div style="color:var(--cream-dim);font-size:14px;margin-top:10px;max-width:340px;margin-left:auto;margin-right:auto">${escapeHtml(rec.tagline)}</div>
+    </div>
+    <button class="sheet-add" id="pw-choose" style="margin-top:10px;font-size:16px;padding:16px">${ic("check_bold")} Je choisis ${escapeHtml(rec.name)}</button>
+    <div class="ps-note" style="text-align:center;margin-top:14px;font-size:13px">Ou compare avec les autres plans :</div>
+    <div class="pw-others">
+      ${others.map(k => {
+        const p = BOSS.PLANS[k];
+        return `<button class="plus-item" data-plan="${k}"><b style="color:${p.iconColor}">${p.name}</b> — ${new Intl.NumberFormat('fr-FR').format(p.price)} F/mois</button>`;
+      }).join("")}
+    </div>
+    <button class="plus-item" id="pw-restart" style="margin-top:12px;font-size:12.5px;color:var(--cream-dim)">Recommencer les questions</button>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#pw-restart").onclick = openPlanWizard;
+  $("#pw-choose").onclick = async ()=>{
+    if(!state.license) state.license = BOSS.defaultLicense();
+    state.license.planId = recommended;
+    state.license.acceptedMonthly = BOSS.billingV2(state.license, accountCounts()).total;
+    state.license.acceptedAt = Date.now();
+    state.planWizardDone = true;
+    await persist();
+    closeSheet();
+    setTimeout(openAbonnement, 300);
+  };
+  sheet.querySelectorAll("[data-plan]").forEach(b => b.onclick = async ()=>{
+    const planId = b.dataset.plan;
+    if(!state.license) state.license = BOSS.defaultLicense();
+    state.license.planId = planId;
+    state.license.acceptedMonthly = BOSS.billingV2(state.license, accountCounts()).total;
+    state.license.acceptedAt = Date.now();
+    state.planWizardDone = true;
+    await persist();
+    closeSheet();
+    setTimeout(openAbonnement, 300);
+  });
+}
+
 function openAbonnement(){
   const counts = accountCounts();
   const bill = BOSS.billingV2(state.license, counts);
@@ -3073,6 +3212,8 @@ function openAbonnement(){
       </div>
     </div>
 
+    <button class="plus-item" id="abo-wizard" style="margin-top:12px;background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:1px solid var(--gold);color:var(--gold);text-align:center;font-weight:700">🤔 Quel plan me convient ? (4 questions)</button>
+
     ${bill.total > plan.price ? `
       <div class="abo-detail">
         <div><span>${bill.businesses} business × ${new Intl.NumberFormat('fr-FR').format(plan.price)} F</span><b>${new Intl.NumberFormat('fr-FR').format(bill.businessCost)} F</b></div>
@@ -3095,19 +3236,70 @@ function openAbonnement(){
     <div id="abo-status" class="ps-note" style="margin-top:10px;min-height:18px"></div>
   `;
   $("#sheet-close").onclick = closeSheet;
-  sheet.querySelectorAll(".plan-cta").forEach(b => b.onclick = async () => {
-    const newPlanId = b.dataset.choose;
-    const target = BOSS.PLANS[newPlanId];
-    if(!confirm(`Passer au plan ${target.name} (${new Intl.NumberFormat('fr-FR').format(target.price)} F/mois) ?\n\nPaiement via Mobile Money ou virement (à configurer plus tard). Pour le moment, le nouveau plan s'active immédiatement.`)) return;
+  const wizBtn = $("#abo-wizard"); if(wizBtn) wizBtn.onclick = openPlanWizard;
+  sheet.querySelectorAll(".plan-cta").forEach(b => b.onclick = ()=>{
+    openPlanChange(b.dataset.choose);
+  });
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
+/* ============================================================
+   Flow changement de plan avec instructions Mobile Money
+   ============================================================ */
+function openPlanChange(newPlanId){
+  const target = BOSS.PLANS[newPlanId];
+  if(!target) return;
+  const counts = accountCounts();
+  const nextTotal = target.price * (counts.metiers||1) + Math.round(target.price * 0.6 * (counts.collaborateurs||0));
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>Passer au plan ${escapeHtml(target.name)}</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:14px 8px 8px">
+      <div style="color:${target.iconColor};font-size:56px;line-height:1;margin-bottom:8px">${ic(target.icon,"xxl")}</div>
+      <div style="font-family:'Archivo';font-weight:900;font-size:24px;color:${target.iconColor}">${escapeHtml(target.name)}</div>
+      <div style="color:var(--gold);font-family:'Archivo';font-weight:800;font-size:28px;margin-top:6px">${new Intl.NumberFormat('fr-FR').format(nextTotal)} F/mois</div>
+      <div style="color:var(--cream-dim);font-size:12.5px;margin-top:4px">${counts.metiers} business × ${new Intl.NumberFormat('fr-FR').format(target.price)} F${counts.collaborateurs>0?` + ${counts.collaborateurs} collab × +60%`:''}</div>
+    </div>
+
+    <h3 style="font-family:'Archivo';font-weight:800;font-size:15px;color:var(--gold);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 10px">💳 Comment payer</h3>
+
+    <div class="pay-opt">
+      <div class="pay-opt-h"><span style="color:#00b3ff">📱 Wave</span></div>
+      <div class="pay-opt-b">Envoie <b>${new Intl.NumberFormat('fr-FR').format(nextTotal)} F</b> au <b>+225 07 47 85 79 39</b><br>Motif : « BOSS ${escapeHtml(target.name)} — [ton téléphone] »</div>
+    </div>
+    <div class="pay-opt">
+      <div class="pay-opt-h"><span style="color:#ff6600">🍊 Orange Money</span></div>
+      <div class="pay-opt-b">Code : <b>#144#</b> → Envoi d'argent → <b>+225 07 47 85 79 39</b> → <b>${new Intl.NumberFormat('fr-FR').format(nextTotal)} F</b></div>
+    </div>
+    <div class="pay-opt">
+      <div class="pay-opt-h"><span style="color:#ffd700">🟡 MTN Mobile Money</span></div>
+      <div class="pay-opt-b">Code : <b>*133#</b> → Envoi d'argent → <b>+225 07 47 85 79 39</b> → <b>${new Intl.NumberFormat('fr-FR').format(nextTotal)} F</b></div>
+    </div>
+
+    <div class="ps-note" style="background:#241f10;border:1px solid var(--gold);border-radius:10px;padding:12px;margin-top:14px;font-size:13px;line-height:1.5">
+      <b>Après ton paiement :</b><br>
+      1. Envoie une capture d'écran du paiement au WhatsApp <b>+225 07 47 85 79 39</b><br>
+      2. Ton plan est activé <b>sous 1h</b> (souvent en 10 min).<br>
+      3. Tu reçois une confirmation WhatsApp.
+    </div>
+
+    <button class="sheet-add" id="pch-activate" style="margin-top:14px">${ic("check_bold")} J'ai payé — activer ${escapeHtml(target.name)} maintenant</button>
+    <button class="plus-item" id="pch-cancel" style="margin-top:8px">Annuler</button>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#pch-cancel").onclick = ()=>{ closeSheet(); setTimeout(openAbonnement, 300); };
+  $("#pch-activate").onclick = async ()=>{
+    if(!confirm(`Confirmer que tu as bien payé ${new Intl.NumberFormat('fr-FR').format(nextTotal)} F pour ${target.name} ?\n\nLe plan sera activé immédiatement. Une vérification manuelle sera faite ensuite.`)) return;
     if(!state.license) state.license = BOSS.defaultLicense();
     state.license.planId = newPlanId;
-    state.license.acceptedMonthly = BOSS.billingV2(state.license, accountCounts()).total;
+    state.license.acceptedMonthly = nextTotal;
     state.license.acceptedAt = Date.now();
+    state.license.pendingPaymentVerif = true;
     await persist();
-    $("#abo-status").innerHTML = `✅ Plan ${target.name} activé.`;
-    $("#abo-status").style.color = "#7c7";
-    setTimeout(openAbonnement, 700);
-  });
+    try { if(typeof ActivityLog !== "undefined") ActivityLog.log("action", "plan_change", { from: BOSS.currentPlan(state.license).id, to: newPlanId, amount: nextTotal }); } catch(_){}
+    alert(`✅ Plan ${target.name} activé.\n\nUne vérification manuelle sera faite par l'équipe BOSS. Merci !`);
+    closeSheet(); setTimeout(openAbonnement, 300);
+  };
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 function openTeam(){
@@ -4363,6 +4555,56 @@ function bmcNextAction(){
   if(!b || !b.actions) return null;
   return b.actions.find(a => !a.done) || null;
 }
+/* Bannière essai / abonnement : visible en haut du dashboard */
+function renderTrialBanner(){
+  const host = document.getElementById("d-trial-banner") || (function(){
+    const dashView = document.getElementById("view-dash");
+    if(!dashView) return null;
+    const el = document.createElement("div");
+    el.id = "d-trial-banner";
+    dashView.insertBefore(el, dashView.firstChild);
+    return el;
+  })();
+  if(!host) return;
+  if(!state.license){ host.innerHTML=""; host.style.display="none"; return; }
+  const counts = accountCounts();
+  const st = BOSS.licenseStatus(state.license, counts.metiers, Date.now());
+  const plan = BOSS.currentPlan(state.license);
+  if(st.state === "trial"){
+    const days = st.daysLeftTrial;
+    const urgency = days <= 1 ? "danger" : days <= 7 ? "warn" : "info";
+    const colors = { danger:{bg:"linear-gradient(135deg,#281515 0%,#1a0f0f 100%)",border:"#e05555",fg:"#f19595"},
+                     warn:  {bg:"linear-gradient(135deg,#28211a 0%,#1a170f 100%)",border:"#c79b32",fg:"#f3c162"},
+                     info:  {bg:"linear-gradient(135deg,#241f10 0%,#1a1608 100%)",border:"var(--gold)",fg:"var(--gold)"} };
+    const c = colors[urgency];
+    const msg = days <= 1
+      ? `⚡ Ton essai Grand BOSS se termine <b>demain</b>. Choisis ton plan pour continuer à profiter de toutes les fonctions.`
+      : days <= 7
+        ? `⏰ Il te reste <b>${days} jour${days>1?'s':''}</b> d'essai gratuit. Ensuite tu passes en Petit BOSS.`
+        : `🎁 Essai gratuit Grand BOSS — <b>${days} jour${days>1?'s':''} restants</b>. Toutes les fonctions débloquées.`;
+    host.innerHTML = `
+      <div class="trial-banner" style="background:${c.bg};border:1.5px solid ${c.border};border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1;color:${c.fg};font-size:13.5px;line-height:1.4">${msg}</div>
+        <button class="trial-cta" style="background:${c.border};color:var(--on-accent);border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit">Choisir mon plan</button>
+      </div>`;
+    host.style.display = "";
+    const btn = host.querySelector(".trial-cta");
+    if(btn) btn.onclick = openPlanWizard;
+  } else if(st.state === "grace" || st.state === "locked"){
+    host.innerHTML = `
+      <div class="trial-banner" style="background:linear-gradient(135deg,#281515 0%,#1a0f0f 100%);border:1.5px solid #e05555;border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1;color:#f19595;font-size:13.5px;line-height:1.4">${st.state === "locked" ? "🔒 Ton compte est bloqué. Renouvelle ton abonnement pour reprendre." : "⚠️ Paiement en attente. Régularise pour éviter le blocage."}</div>
+        <button class="trial-cta" style="background:#e05555;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit">Payer</button>
+      </div>`;
+    host.style.display = "";
+    const btn = host.querySelector(".trial-cta");
+    if(btn) btn.onclick = openAbonnement;
+  } else {
+    host.innerHTML = "";
+    host.style.display = "none";
+  }
+}
+
 function renderBmcCoachCard(){
   const host = document.getElementById("d-coach");
   if(!host) return;
