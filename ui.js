@@ -7011,10 +7011,102 @@ function fmtDate(ts){
 function refreshAll(){ renderTopbar(); renderVitrine(); renderCaisse(); renderPOS(); renderCarnet(); renderStock(); renderClients(); renderCommandes(); renderPieces(); renderTreso(); renderHistorique(); renderConfig(); renderDash(); }
 
 /* ---------- wiring ---------- */
+/* ============================================================
+   Refresh silencieux (clic sur logo BOSS)
+   - Sauvegarde local puis synchronise avec le cloud en arrière-plan
+   - Préserve : sheet ouvert, vue courante, focus + sélection texte
+   - Feedback : logo qui tourne + toast succès/échec
+   ============================================================ */
+function showBossToast(msg, kind){
+  let t = document.getElementById("boss-toast");
+  if(!t){
+    t = document.createElement("div");
+    t.id = "boss-toast";
+    t.className = "boss-toast";
+    document.body.appendChild(t);
+  }
+  t.className = "boss-toast" + (kind ? " " + kind : "");
+  t.textContent = msg;
+  requestAnimationFrame(()=>t.classList.add("on"));
+  clearTimeout(t._hide);
+  t._hide = setTimeout(()=>t.classList.remove("on"), 2200);
+}
+
+let __refreshInFlight = false;
+async function bossLogoRefresh(){
+  if(__refreshInFlight) return;
+  __refreshInFlight = true;
+  const logo = document.getElementById("blogo-btn");
+  const sblogo = document.getElementById("sb-logo-btn");
+  if(logo) logo.classList.add("refreshing");
+  if(sblogo) sblogo.classList.add("refreshing");
+
+  // Snapshot du focus pour ne pas perdre la saisie en cours
+  const active = document.activeElement;
+  const isEditable = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+  const focusSnapshot = isEditable ? {
+    id: active.id || null,
+    tag: active.tagName,
+    selectionStart: active.selectionStart,
+    selectionEnd: active.selectionEnd,
+    value: active.value
+  } : null;
+  // Snapshot du sheet ouvert (pour ne pas le fermer)
+  const sheetOpen = document.getElementById("sheet")?.classList.contains("on");
+
+  try {
+    // 1. Sauvegarde locale de tout état en cours
+    await persist();
+    // 2. Draine la queue offline (push mutations en attente)
+    try { await SyncQueue.retryAll(); } catch(_){}
+    // 3. Si cloud connecté, pull les changements distants + push local
+    let didPull = false;
+    if(typeof Cloud !== "undefined" && Cloud.available() && Cloud.session() && Cloud.currentOrgId()){
+      try {
+        const changed = await Cloud.pullAndMerge();
+        didPull = changed;
+        await Cloud.pushLocal();
+      } catch(_){}
+    }
+    // 4. Rafraîchit UI hors sheet
+    try {
+      renderTopbar();
+      // Ne refresh que la vue visible (pas les sheets qui pourraient perdre l'état)
+      const currentView = document.querySelector(".view.on")?.id?.replace("view-", "") || "";
+      const renderers = { dash: renderDash, boutique: renderVitrine, caisse: renderCaisse,
+                          pos: renderPOS, carnet: renderCarnet, stock: renderStock,
+                          clients: renderClients, commandes: renderCommandes,
+                          pieces: renderPieces, tresorerie: renderTreso,
+                          historique: renderHistorique, config: renderConfig };
+      const r = renderers[currentView];
+      if(typeof r === "function") r();
+      updateSyncBadge && updateSyncBadge();
+    } catch(_){}
+    // 5. Restaure focus + sélection texte
+    if(focusSnapshot && focusSnapshot.id){
+      const el = document.getElementById(focusSnapshot.id);
+      if(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")){
+        if(el.value !== focusSnapshot.value) el.value = focusSnapshot.value;
+        el.focus();
+        try { el.setSelectionRange(focusSnapshot.selectionStart, focusSnapshot.selectionEnd); } catch(_){}
+      }
+    }
+    showBossToast(didPull ? "✓ Actualisé (nouveautés reçues)" : "✓ À jour", "ok");
+  } catch(e){
+    showBossToast("Rafraîchissement partiel", "err");
+  } finally {
+    if(logo) logo.classList.remove("refreshing");
+    if(sblogo) sblogo.classList.remove("refreshing");
+    __refreshInFlight = false;
+  }
+}
+
 function wire(){
   $$(".tab[data-v],.navlink[data-v]").forEach(t=>t.onclick=()=>showView(t.dataset.v));
   const tp=$("#tab-plus"); if(tp) tp.onclick=openPlus;
   const sp=$("#side-plus"); if(sp) sp.onclick=openPlus;
+  const logo=$("#blogo-btn"); if(logo) logo.onclick=bossLogoRefresh;
+  const sblogo=$("#sb-logo-btn"); if(sblogo) sblogo.onclick=bossLogoRefresh;
   $("#profbtn").onclick=openProfiles;
   $("#overlay").onclick=closeSheet;
   $("#chat-send").onclick=()=>{const v=$("#chat-input").value;$("#chat-input").value="";handleUser(v);};

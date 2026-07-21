@@ -51,8 +51,16 @@
   .topbar{position:sticky;top:0;z-index:30;background:var(--char);border-bottom:1px solid var(--line);padding:11px 15px;display:flex;align-items:center;gap:11px;overflow-x:auto;scrollbar-width:none}
   .topbar::-webkit-scrollbar{display:none}
   .topbar > *{flex-shrink:0}
-  .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1}
+  .blogo{font-family:'Archivo';font-weight:900;font-size:24px;letter-spacing:-.02em;color:var(--gold);line-height:1;background:none;border:none;padding:0;cursor:pointer;transition:opacity .15s,transform .15s}
+  .blogo:hover{opacity:.85}
+  .blogo:active{transform:scale(.94)}
+  .blogo.refreshing{animation:blogoSpin 1s linear infinite}
+  @keyframes blogoSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
   .blogo .dot{color:var(--cream)}
+  .boss-toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--char);border:1px solid var(--gold);color:var(--gold);border-radius:999px;padding:8px 16px;font-size:13.5px;font-weight:600;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+  .boss-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .boss-toast.ok{border-color:#7dd095;color:#7dd095}
+  .boss-toast.err{border-color:#f19595;color:#f19595}
   .admin-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:-6px 0 10px 0;scrollbar-width:none}
   .admin-tabs::-webkit-scrollbar{display:none}
   .admin-tab{background:var(--char);color:var(--cream);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
@@ -864,7 +872,10 @@
 
   /* SIDEBAR (grand écran / Fold déplié) */
   .sidebar{display:none;position:fixed;left:0;top:0;bottom:0;width:230px;background:var(--char);border-right:1px solid var(--line);padding:18px 14px;flex-direction:column;gap:5px;z-index:35}
-  .sb-logo{font-family:'Archivo';font-weight:900;font-size:30px;color:var(--gold);letter-spacing:-.02em;margin:4px 6px 16px}
+  .sb-logo{font-family:'Archivo';font-weight:900;font-size:30px;color:var(--gold);letter-spacing:-.02em;margin:4px 6px 16px;background:none;border:none;padding:0;cursor:pointer;text-align:left;transition:opacity .15s,transform .15s;font-family:'Archivo'}
+  .sb-logo:hover{opacity:.85}
+  .sb-logo:active{transform:scale(.96)}
+  .sb-logo.refreshing{animation:blogoSpin 1s linear infinite}
   .sb-logo span{color:var(--cream)}
   .navlink{display:flex;align-items:center;gap:12px;background:none;border:none;color:var(--cream-dim);cursor:pointer;font-family:'Inter';font-size:15px;font-weight:600;padding:12px 12px;border-radius:11px;text-align:left;width:100%}
   .navlink .ti{font-size:19px}
@@ -1066,7 +1077,7 @@
 <div class="app">
 
   <aside class="sidebar">
-    <div class="sb-logo">BOSS<span>.</span></div>
+    <button class="sb-logo" id="sb-logo-btn" type="button" title="Rafraîchir BOSS (garde ta saisie)">BOSS<span>.</span></button>
     <button class="navlink" data-v="dash"><span class="ti" data-ic="dash"></span>Tableau</button>
     <button class="navlink" data-v="boutique"><span class="ti" data-ic="boutique"></span>Boutique</button>
     <button class="navlink" data-v="stock"><span class="ti" data-ic="stock"></span>Stock</button>
@@ -1098,7 +1109,7 @@
     <button class="nav-arrow" id="nav-forward" title="Suivant" disabled aria-label="Suivant">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
     </button>
-    <div class="blogo">BOSS<span class="dot">.</span></div>
+    <button class="blogo" id="blogo-btn" title="Rafraîchir BOSS (garde ta saisie)">BOSS<span class="dot">.</span></button>
     <button class="theme-toggle" id="theme-toggle" data-ic="theme" title="Clair / sombre"></button>
     <button class="cloud-badge cb-off" id="cloud-badge" title="Espace en ligne">Local</button>
     <button class="profbtn" id="profbtn">
