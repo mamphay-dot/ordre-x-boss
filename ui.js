@@ -4029,19 +4029,26 @@ ${answers}
 Reste bref (max 500 mots). Utilise "tu" et parle comme à un ami patron. Pas de jargon marketing.`;
 
   let text = "";
-  try {
-    // Requête anonyme (sans clé API) — reste gratuite selon Pollinations
-    const url = "https://text.pollinations.ai/" + encodeURIComponent(prompt);
-    const resp = await fetch(url, { headers: { "Accept": "text/plain" } });
-    if(!resp.ok) throw new Error("HTTP "+resp.status);
-    text = await resp.text();
-    // Sanity : si la réponse ressemble à du JSON d'erreur, on refuse
-    const trimmed = text.trim();
-    if(trimmed.startsWith("{") && /error|status/i.test(trimmed)) throw new Error("Réponse d'erreur JSON");
-    if(!trimmed || trimmed.length < 100) throw new Error("Réponse trop courte");
-  } catch(e){
-    // Fallback intelligent basé sur les réponses de l'utilisateur (aucune IA requise)
-    text = buildBmcHeuristicStrategy(b, p, stats);
+  // 1. Cache d'abord si dispo (offline-first)
+  const cacheKey = "bmc-strategy:" + JSON.stringify({s:b.segments, v:b.value, c:b.channels, r:b.revenue}).slice(0,200);
+  const cached = CoachOffline.getCached(cacheKey);
+
+  if(!CoachOffline.isOnline()){
+    // Offline : cache ou heuristique
+    text = cached || buildBmcHeuristicStrategy(b, p, stats);
+  } else {
+    try {
+      const url = "https://text.pollinations.ai/" + encodeURIComponent(prompt);
+      const resp = await fetch(url, { headers: { "Accept": "text/plain" } });
+      if(!resp.ok) throw new Error("HTTP "+resp.status);
+      text = await resp.text();
+      const trimmed = text.trim();
+      if(trimmed.startsWith("{") && /error|status/i.test(trimmed)) throw new Error("Réponse d'erreur JSON");
+      if(!trimmed || trimmed.length < 100) throw new Error("Réponse trop courte");
+      CoachOffline.setCached(cacheKey, text);
+    } catch(e){
+      text = cached || buildBmcHeuristicStrategy(b, p, stats);
+    }
   }
 
   try {
@@ -4695,23 +4702,279 @@ function renderAdminLicence(body){
   renderPerms();
 }
 
-/* ---------- COACH IA (question libre, API si dispo sinon local) ---------- */
+/* ============================================================
+   CoachOffline — moteur de règles locales + cache offline-first
+   ============================================================ */
+const CoachOffline = (function(){
+  const CACHE_KEY = "boss:coach:cache";
+  const CACHE_MAX = 20;
+
+  function isOnline(){ return typeof navigator !== "undefined" ? navigator.onLine !== false : true; }
+  function readCache(){ try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); } catch(_){ return {}; } }
+  function writeCache(c){ try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch(_){} }
+  function hash(q){ return String(q||"").toLowerCase().trim().replace(/\s+/g," ").slice(0,200); }
+  function getCached(q){ const c = readCache(); const h = hash(q); return c[h] ? c[h].a : null; }
+  function setCached(q, a){
+    const c = readCache(); const h = hash(q);
+    c[h] = { a, ts: Date.now() };
+    // Trim to CACHE_MAX
+    const keys = Object.keys(c);
+    if(keys.length > CACHE_MAX){
+      keys.sort((a,b)=>c[a].ts - c[b].ts);
+      keys.slice(0, keys.length - CACHE_MAX).forEach(k => delete c[k]);
+    }
+    writeCache(c);
+  }
+
+  // Format d'une réponse : plusieurs lignes, phrases courtes, français simple.
+  function pctCF(f){ return f.ca>0 ? Math.round(f.cf/f.ca*100) : 0; }
+  function pctNet(f){ return f.ca>0 ? Math.round(f.net/f.ca*100) : 0; }
+  function bestProduct(p){
+    const rev = (p.revenus||[]).filter(r=>r.prix>r.cout && r.qte>0);
+    if(!rev.length) return null;
+    return rev.map(r=>({r, m:(r.prix-r.cout)*r.qte})).sort((a,b)=>b.m-a.m)[0].r;
+  }
+  function worstProduct(p){
+    const rev = (p.revenus||[]).filter(r=>r.prix>0);
+    if(!rev.length) return null;
+    return rev.map(r=>({r, m:(r.prix-r.cout)/Math.max(1,r.prix)})).sort((a,b)=>a.m-b.m)[0].r;
+  }
+
+  // ~40 patterns. Chaque règle : { match: RegExp, gen: (ctx) => string }
+  const RULES = [
+    // ==== VENDRE / GAGNER PLUS ====
+    { match:/(vendre|gagner|augmenter|faire).*(plus|davantage)|(comment|astuce).*(vend|gagn)|booster/i,
+      gen: ({p,f}) => {
+        const lines = ["Voici 3 leviers rapides pour vendre plus :"];
+        if(f.ca < 300000) lines.push("1. **WhatsApp Status quotidien** — 1 photo produit + prix + ton numéro. Objectif : 10 nouveaux clients/semaine (gratuit).");
+        else lines.push("1. **Fidélisation** — carte à tampons ou remise après 10 achats. Retenir un client coûte 5× moins cher que d'en trouver un nouveau.");
+        const best = bestProduct(p);
+        if(best) lines.push(`2. **Mets ${best.nom} en avant** — c'est ton meilleur produit en marge. Vitrine, promo combo, ou photo sur ton WhatsApp Status.`);
+        else lines.push("2. **Ajoute 2-3 nouveaux produits** ce mois. Un catalogue plus large fait revenir ceux qui ont déjà tout essayé.");
+        lines.push("3. **Demande à tes 3 meilleurs clients** de te recommander à un ami cette semaine. Offre 10 % à chacun. Bouche à oreille = pub gratuite.");
+        return lines.join("\n");
+      }
+    },
+    // ==== QUEL PRODUIT POUSSER ====
+    { match:/(quel|meilleur).*(produit|article).*(pouss|mettre|avant|prioriser)|produit.*rentable/i,
+      gen: ({p,f}) => {
+        const best = bestProduct(p);
+        if(!best) return "Ajoute d'abord tes produits dans Boutique avec prix et coût — sans ça je ne peux pas te dire lequel est le meilleur.";
+        const marge = best.prix - best.cout;
+        return `**${best.nom}** est ton meilleur produit :\n• Marge unitaire : ${BOSS.fmtF(marge)} (prix ${BOSS.fmtF(best.prix)} - coût ${BOSS.fmtF(best.cout)})\n• Volume : ${best.qte}/mois\n• Total marge : ${BOSS.fmtF(marge*best.qte)}/mois\n\n➡️ Pousse-le : vitrine, photo WhatsApp, promo combo, mets-le en tête de menu.`;
+      }
+    },
+    // ==== CHARGES / COÛTS ÉLEVÉS ====
+    { match:/(charges?|coûts?|dépenses?|loyer|salaire).*(trop|élevé|haut|mange|réduire|baisser)/i,
+      gen: ({p,f}) => {
+        const pct = pctCF(f);
+        if(pct === 0) return "Je n'ai pas assez de données sur tes charges. Va dans Réglages → Charges fixes pour les saisir.";
+        if(pct > 60) return `⚠️ Tes charges fixes = **${pct} % de ton CA**. C'est très élevé (>50 %). Actions urgentes :\n1. Négocie ton loyer ou change de local si possible\n2. Vérifie tes salaires — trop de personnel vs le CA ?\n3. Coupe l'électricité inutile (frigos, lumières la nuit)`;
+        if(pct > 40) return `Tes charges fixes = **${pct} % de ton CA**. C'est acceptable mais à surveiller :\n1. Liste tes 3 plus grosses charges → laquelle peut baisser ?\n2. Regarde si un fournisseur moins cher existe\n3. Un mois sans achat superflu peut débloquer 20-50 K F`;
+        return `Tes charges fixes = **${pct} % de ton CA**. C'est sain (<40 %). Continue à surveiller et cherche à augmenter ton CA pour améliorer encore ce ratio.`;
+      }
+    },
+    // ==== BÉNÉFICE / MARGE ====
+    { match:/(bénéfice|marge|résultat|profit).*(faible|petit|amél|augmenter|comment)|combien.*(gagne|reste)/i,
+      gen: ({p,f}) => {
+        if(f.ca<=0) return "Ajoute au moins une vente pour que je calcule ton bénéfice.";
+        const pct = pctNet(f);
+        return `Ton bénéfice net ce mois : **${BOSS.fmtF(f.net)}** (${pct} % de tes ventes).\n\n${f.net<0 ? "⚠️ Tu perds. Priorité 1 : atteindre le seuil de "+BOSS.fmtF(f.seuilCA)+" de ventes.\nRegarde tes produits à perte et arrête-les. Renégocie les charges." : f.net<f.ca*0.1 ? "Marge faible. Vise ≥15 %. Augmente les prix des produits phares de 5-10 %, personne ne le remarquera." : pct>=0.3 ? "Excellente marge. Pense à réinvestir : nouveau produit, matériel, employé, ou épargne." : "Marge correcte. Pour la doubler : combine plus de ventes + baisse d'une charge fixe."}`;
+      }
+    },
+    // ==== PERTE ====
+    { match:/(perte|perds|déficit|négatif)/i,
+      gen: ({p,f}) => {
+        if(f.net>=0) return `Bonne nouvelle : tu n'es pas en perte. Ton bénéfice ce mois : ${BOSS.fmtF(f.net)}.`;
+        const worst = worstProduct(p);
+        const lines = [`⚠️ Tu perds ${BOSS.fmtF(-f.net)} ce mois.\n\nActions immédiates :`];
+        lines.push(`1. Atteindre le seuil de rentabilité : ${BOSS.fmtF(f.seuilCA)} de ventes/mois (il te manque ${BOSS.fmtF(f.seuilCA-f.ca)}).`);
+        if(worst && worst.prix<worst.cout) lines.push(`2. Arrête ou augmente le prix de **${worst.nom}** : tu le vends à perte (${BOSS.fmtF(worst.prix)} < coût ${BOSS.fmtF(worst.cout)}).`);
+        lines.push(`3. Coupe une charge fixe non essentielle ce mois. Vise -10 %.`);
+        return lines.join("\n");
+      }
+    },
+    // ==== FIDÉLISER CLIENTS ====
+    { match:/(fidélis|retenir|garder|revient|revenir).*(client|acheteur)/i,
+      gen: () =>
+        "5 façons simples de fidéliser :\n\n" +
+        "1. **Appeler par le prénom** — note-les dans BOSS Clients.\n" +
+        "2. **Carte fidélité** — 1 tampon par achat, 10 tampons = 1 produit gratuit.\n" +
+        "3. **Petit cadeau surprise** au 5e achat.\n" +
+        "4. **SMS ou WhatsApp** quand du nouveau arrive.\n" +
+        "5. **Crédit contrôlé** aux plus fidèles (via BOSS Carnet)."
+    },
+    // ==== TROUVER NOUVEAUX CLIENTS ====
+    { match:/(nouveau|trouver|attirer|acqu).*(client|acheteur)|comment.*monde/i,
+      gen: () =>
+        "3 canaux qui marchent en Afrique de l'Ouest :\n\n" +
+        "1. **WhatsApp Status** — 1 photo par jour, 5 min de travail. Résultat en 1-2 semaines.\n" +
+        "2. **Bouche à oreille organisé** — offre 10 % à un client qui te ramène un ami.\n" +
+        "3. **Visibilité physique** — panneau clair devant ta boutique, propreté, tenue soignée. Un client qui passe = 1 client potentiel."
+    },
+    // ==== STOCK ====
+    { match:/(stock|inventair|rupture|manque)/i,
+      gen: ({p}) => {
+        const low = (BOSS.lowStockItems ? BOSS.lowStockItems(p, 5) : []) || [];
+        if(!low.length) return "Ton stock a l'air bon. Continue à noter chaque vente dans BOSS Caisse pour que le stock se mette à jour tout seul.";
+        return `⚠️ Stock bas :\n${low.map(x=>`• ${x.nom} : ${x.stock} restant(s)`).join("\n")}\n\nPasse commande à ton fournisseur cette semaine avant la rupture. La rupture = clients perdus qui vont chez le voisin.`;
+      }
+    },
+    // ==== PRIX ====
+    { match:/(prix).*(juste|correct|augmenter|baisser|fixer|calcul)/i,
+      gen: ({p}) => {
+        const rev = (p.revenus||[]).filter(r=>r.cout>0);
+        if(!rev.length) return "Renseigne tes coûts d'achat dans Boutique — sans coût, je ne peux pas calculer un prix juste.";
+        const suggestions = rev.slice(0,3).map(r=>{
+          const marge = r.prix-r.cout;
+          const suggest = Math.ceil(r.cout*1.4 / 100)*100; // +40% arrondi
+          if(r.prix < r.cout) return `⚠️ **${r.nom}** : vendu à perte. Prix mini : ${BOSS.fmtF(suggest)}.`;
+          if((r.prix-r.cout)/r.prix < 0.2) return `**${r.nom}** : marge trop faible (${Math.round(marge/r.prix*100)}%). Vise ${BOSS.fmtF(suggest)}.`;
+          return `**${r.nom}** : bien positionné (marge ${Math.round(marge/r.prix*100)}%).`;
+        });
+        return "Analyse rapide des prix :\n" + suggestions.join("\n") + "\n\nRègle : marge = (prix - coût) / prix. Vise **au moins 30 %** pour absorber loyer, salaires, imprévus.";
+      }
+    },
+    // ==== DETTE CLIENT / CARNET ====
+    { match:/(dette|doit|crédit|carnet|impayé)/i,
+      gen: ({p}) => {
+        const kt = BOSS.carnetTotals ? BOSS.carnetTotals(p) : {impaye:0, count:0};
+        if(kt.impaye<=0) return "Aucune dette client en cours. Continue à noter dans BOSS Carnet chaque nouvelle avance de crédit.";
+        return `Tes clients te doivent **${BOSS.fmtF(kt.impaye)}** (${kt.count||''} personne(s)).\n\nActions :\n1. Ouvre BOSS Carnet → touche « Relancer WhatsApp » sur les plus vieilles dettes.\n2. Fixe une règle : pas plus de X F de crédit par client, remboursement sous 30 jours max.\n3. Refuse le crédit à celui qui doit déjà + de 2 semaines.`;
+      }
+    },
+    // ==== TRÉSORERIE ====
+    { match:/(trésor|liquid|argent|cash|caisse.*vide|encaisse)/i,
+      gen: ({p,f}) => {
+        const ct = BOSS.caisseTotals ? BOSS.caisseTotals(p, Date.now()) : {ventesMois:0, depensesMois:0};
+        const net = (ct.ventesMois||0)-(ct.depensesMois||0);
+        return `Ta trésorerie ce mois :\n• Encaissé : **${BOSS.fmtF(ct.ventesMois||0)}**\n• Dépensé : **${BOSS.fmtF(ct.depensesMois||0)}**\n• Solde : **${BOSS.fmtF(net)}**\n\n${net<0 ? "⚠️ Tu dépenses plus que tu n'encaisses ce mois. Arrête les dépenses non urgentes." : "Bonne santé. Garde une réserve de 1-2 mois de charges au cas où."}`;
+      }
+    },
+    // ==== EMPLOYÉ / COLLABORATEUR ====
+    { match:/(emplo|collabor|salari|équipe|embauch)/i,
+      gen: ({p,f}) => {
+        if(f.net<0) return "Attention : tu es en perte. N'embauche pas maintenant, ça aggravera. Priorité au bénéfice.";
+        if(f.net<50000) return "Bénéfice trop faible pour un employé sûr. Attends d'avoir >100 K F de marge nette régulière.";
+        return `Tu as **${BOSS.fmtF(f.net)}** de bénéfice net/mois. Un employé coûte ~60-120 K F/mois selon le poste.\n\nRègle : un employé doit **doubler** ton temps utile ou ton CA. Sinon il coûte plus qu'il ne rapporte.\n\nAvant d'embaucher :\n1. Essaie 1 mois en freelance/à la journée\n2. Note exactement ce qu'il t'apporte en plus\n3. Recrute seulement si le ROI est clair`;
+      }
+    },
+    // ==== HORAIRES / TEMPS ====
+    { match:/(horair|ouvert|ferm|fatigue|temps|jour|dimanche)/i,
+      gen: ({p}) => "Optimise ton temps :\n\n1. **Note tes heures de pointe** — la moitié du CA se fait souvent en 2-3h. Sois ready à ce moment.\n2. **Ferme quand personne ne vient** — repos = énergie pour les heures pleines.\n3. **Dimanche matin** (marchés) et **fin de mois** (paie) = souvent les meilleurs jours."
+    },
+    // ==== CONCURRENCE ====
+    { match:/(concurr|voisin|rival|même métier)/i,
+      gen: () => "Face à la concurrence :\n\n1. **Ne baisse pas les prix** — c'est la course au fond. Différencie-toi par la qualité, l'accueil, la fidélisation.\n2. **Observe ton voisin** 1 semaine : ce qu'il fait bien, ce qu'il rate → improve ton service.\n3. **Ta signature** — 1 chose que TOI seul fais bien. Un plat unique, une gentillesse particulière, une livraison plus rapide."
+    },
+    // ==== SAISONNALITÉ ====
+    { match:/(saison|mois creux|noël|ramadan|fêtes|rentrée|vacances|pluie|sèche)/i,
+      gen: () => "Anticipe les saisons :\n\n1. **Rentrée scolaire** (sept-oct) : forte demande articles jeunesse, snacks, transport.\n2. **Fêtes fin d'année** (nov-déc) : boost général +30-50 %.\n3. **Ramadan** : baisse repas jour, boost soir + habits fête.\n4. **Saison des pluies** : chute livraison, baisse boutique. Prévois +30 % de stock avant, réduis les dépenses.\n5. **Analyse ton BOSS Historique** de l'an passé pour prédire les creux."
+    },
+    // ==== INVESTIR ====
+    { match:/(invest|acheter|matériel|équipement|frigo|four|machine)/i,
+      gen: ({p,f}) => {
+        if(f.net<50000) return "Trop tôt pour investir : ton bénéfice est <50 K F/mois. Consolide d'abord.";
+        return `Avec ${BOSS.fmtF(f.net)}/mois de bénéfice, tu peux investir raisonnablement.\n\nRègle des 3 questions :\n1. **Combien ça me fera gagner en plus/mois ?** (calcule)\n2. **En combien de mois ça se rembourse ?** Si >12 mois → réfléchis 2 fois.\n3. **Ai-je 2 mois de charges en réserve ?** Ne dépense pas ta trésorerie de secours.`;
+      }
+    },
+    // ==== BANQUE / COMPTE ====
+    { match:/(banqu|compte|mobile money|orange|wave|mtn|prêt|crédit banc)/i,
+      gen: () => "Compte bancaire pour ton business :\n\n1. **Sépare** ton argent personnel du business (compte pro ou même 2 Mobile Money distincts).\n2. **Justifie tes revenus** : garde 6 mois de relevés BOSS + relevé bancaire. Sans ça, pas de prêt.\n3. **Micro-prêts** : Orange Bank, MTN MoMo Loans, Ecobank Xpress — pour équipement, pas pour combler un trou de trésorerie.\n4. **Évite le prêt** si tu n'as pas déjà un business rentable — l'intérêt te tuera."
+    },
+    // ==== TAXES / IMPÔTS ====
+    { match:/(taxe|impôt|fisc|DGI|CGA|patente|TVA|déclara)/i,
+      gen: () => "Basiques fiscaux Côte d'Ivoire :\n\n1. **CGA** (Centre de Gestion Agréé) : rejoins-en un — 50 % de réduction d'impôts.\n2. **Patente** : dépend du CA. Régularise-toi tôt.\n3. **TVA** : si CA > 50 M F/an → obligation. Sinon exonéré.\n4. **BOSS Rapports fiscaux** : Plus → Rapports fiscaux CGA/CEA génère les états prêts pour ton comptable."
+    },
+    // ==== MARKETING / PUB ====
+    { match:/(marketing|pub|publicit|promotion|réseau|facebook|instagram|tiktok)/i,
+      gen: () => "Marketing pas cher pour un petit business :\n\n1. **WhatsApp Status** : 1 post/jour, gratuit, touche tous tes contacts.\n2. **Facebook Marketplace** : liste tes produits, notification à chaque intéressé.\n3. **TikTok** : 1 vidéo de 15s/semaine (préparation d'un plat, service au client). Gratuit et viral.\n4. **Cartes de visite** : 1 000 F pour 100 cartes. Distribue à chaque vente.\n5. **Avis clients** — demande à tes fidèles d'écrire un avis sur ta page. La preuve sociale vaut de l'or."
+    },
+    // ==== AI / TECHNOLOGIE ====
+    { match:/(intelligence artificielle|IA|technologie|numérique|digital|internet|app)/i,
+      gen: () => "BOSS te donne déjà les fonctions IA les plus utiles :\n\n• **Génération de descriptions produits** (Boutique)\n• **Affiches auto** (Plus → Créer affiche)\n• **Coach IA** (ici même)\n• **Assistant onboarding**\n• **Prévision trésorerie**\n\nToutes marchent en ligne ; le Coach a aussi un mode offline. Utilise-les — c'est ce qui différencie un business qui pousse d'un qui stagne."
+    },
+    // ==== SANTÉ MENTALE / STRESS ====
+    { match:/(fatigu|stress|décourag|arrêter|abandon|marre|tenir|motivation)/i,
+      gen: () => "C'est normal d'avoir des moments durs quand on est patron. Ce qui aide :\n\n1. **Un jour de repos complet/semaine** — non négociable. Tu es ton meilleur outil.\n2. **Un objectif clair à 30 jours** — ex : atteindre X F de CA. Vise petit et gagne.\n3. **Un mentor** — quelqu'un de plus âgé qui a réussi dans un business proche. Appelle-le 1 fois/mois.\n4. **Regarde tes progrès** dans BOSS Historique — tu es plus loin qu'il y a 6 mois."
+    }
+  ];
+
+  function answer(question, context){
+    const q = String(question||"").trim();
+    if(!q) return null;
+    const p = context && context.profile ? context.profile : (typeof cur==="function" ? cur() : null);
+    if(!p) return null;
+    let f;
+    try { f = BOSS.computeFinancials(p); } catch(_){ f = {ca:0, cf:0, net:0, coutsDirects:0, seuilCA:0}; }
+    const ctx = { question:q, profile:p, f };
+    for(const rule of RULES){
+      if(rule.match.test(q)){
+        try { return rule.gen(ctx); } catch(e){ /* fallback */ }
+      }
+    }
+    return null;
+  }
+
+  return { answer, getCached, setCached, isOnline };
+})();
+
+/* ---------- COACH IA (hybride : local instant → cache → IA si dispo) ---------- */
 async function askCoach(q){
   const log=$("#ai-log");
   log.appendChild(el("div","ai-u",escapeHtml(q)));
   const wait=el("div","ai-b","…"); log.appendChild(wait); log.scrollTop=log.scrollHeight;
   const p=cur(); const f=BOSS.computeFinancials(p);
-  const ctx=`Business: ${p.name} (${BOSS.METIERS[p.metier].name}). CA ${Math.round(f.ca)} F, coûts directs ${Math.round(f.coutsDirects)} F, charges fixes ${Math.round(f.cf)} F, bénéfice net ${Math.round(f.net)} F, seuil ${Math.round(f.seuilCA)} F. Produits: ${p.revenus.map(r=>r.nom+" prix "+r.prix+" coût "+r.cout+" vol "+r.qte).join("; ")}.`;
-  let answer=await aiComplete([{role:"user",content:`Tu es le Coach BOSS, conseiller business pour un petit entrepreneur d'Afrique de l'Ouest. Parle simplement, en français (un peu de nouchi ivoirien bienvenu), court et concret, en FCFA. Voici ses chiffres: ${ctx}\n\nSa question: ${q}`}],null,400);
-  if(!answer){
-    // repli local: on réutilise les insights + une réponse simple
-    const tips=BOSS.coachInsights(p).items.map(i=>i.txt);
-    answer="Voici ce que je vois sur tes chiffres :\n• "+tips.slice(0,3).join("\n• ");
-    if(f.net<0) answer+="\nPriorité : revenir à l'équilibre en atteignant "+BOSS.fmtF(f.seuilCA)+" de ventes.";
+
+  // 1. Réponse locale instant (si une règle match)
+  const localAnswer = CoachOffline.answer(q, {profile:p, f});
+
+  // 2. Réponse en cache (même question déjà posée)
+  const cached = CoachOffline.getCached(q);
+
+  // 3. Si offline OU pas d'IA configurée, on utilise local/cache/insights
+  if(!CoachOffline.isOnline()){
+    const offlineAnswer = localAnswer || cached || fallbackInsights(p, f);
+    wait.innerHTML = escapeHtml(offlineAnswer).replace(/\n/g,"<br>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>");
+    wait.appendChild(el("div","ai-src","📴 Réponse offline"));
+    log.scrollTop=log.scrollHeight;
+    return;
   }
-  wait.textContent=answer;
-  log.scrollTop=log.scrollHeight;
+
+  // 4. Sinon on tente l'IA en arrière-plan pendant que le local s'affiche
+  if(localAnswer){
+    wait.innerHTML = escapeHtml(localAnswer).replace(/\n/g,"<br>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>");
+    log.scrollTop=log.scrollHeight;
+  }
+
+  try {
+    const ctx=`Business: ${p.name} (${(BOSS.METIERS[p.metier]||{}).name||''}). CA ${Math.round(f.ca)} F, coûts directs ${Math.round(f.coutsDirects)} F, charges fixes ${Math.round(f.cf)} F, bénéfice net ${Math.round(f.net)} F, seuil ${Math.round(f.seuilCA)} F. Produits: ${p.revenus.map(r=>r.nom+" prix "+r.prix+" coût "+r.cout+" vol "+r.qte).join("; ")}.`;
+    const aiAnswer = await aiComplete([{role:"user",content:`Tu es le Coach BOSS, conseiller business pour un petit entrepreneur d'Afrique de l'Ouest. Parle simplement, en français (un peu de nouchi ivoirien bienvenu), court et concret, en FCFA. Voici ses chiffres: ${ctx}\n\nSa question: ${q}`}],null,400);
+    if(aiAnswer && aiAnswer.length > 30 && !/^\{.*error/i.test(aiAnswer.trim())){
+      // On préfère IA si elle a répondu
+      CoachOffline.setCached(q, aiAnswer);
+      wait.innerHTML = escapeHtml(aiAnswer).replace(/\n/g,"<br>");
+      log.scrollTop=log.scrollHeight;
+      return;
+    }
+  } catch(e){ /* IA down — on garde le local */ }
+
+  // 5. Rien de local ET IA down → cache ou insights génériques
+  if(!localAnswer){
+    const answer = cached || fallbackInsights(p, f);
+    wait.innerHTML = escapeHtml(answer).replace(/\n/g,"<br>");
+    log.scrollTop=log.scrollHeight;
+  }
 }
+
+function fallbackInsights(p, f){
+  const tips = (BOSS.coachInsights ? BOSS.coachInsights(p).items.map(i=>i.txt) : []);
+  let a = "Voici ce que je vois sur tes chiffres :\n• "+tips.slice(0,3).join("\n• ");
+  if(f && f.net<0) a += "\n\nPriorité : revenir à l'équilibre en atteignant "+BOSS.fmtF(f.seuilCA)+" de ventes.";
+  return a;
+}
+
+// (askCoach hybride offline-first ci-dessus — l'ancien askCoachLegacy a été supprimé)
 
 /* ============================================================
    PERSONNALISATION UI par profil : écran d'accueil + modules
@@ -6663,6 +6926,19 @@ function openEasyAI(){
     const stats=easyDayStats();
     const contexte=`Business : ${p.name}. Métier : ${(BOSS.METIERS[p.metier]||{}).name||"—"}. Aujourd'hui : ${stats.nbV} ventes pour ${stats.ventes} F, ${stats.nbD} dépenses pour ${stats.depenses} F. Solde du jour : ${stats.caisseNette} F.`;
     const prompt=`Tu es BOSS, assistant vocal pour un patron de rapide entreprise en Afrique de l'Ouest. Réponds en français très simple, phrases courtes (moins de 15 mots), sans jargon. Contexte : ${contexte}. Question : ${question}. Réponds en 2-3 phrases maximum.`;
+    // Offline-first : essaie CoachOffline règles + cache d'abord
+    const local = CoachOffline.answer(question, {profile: p});
+    const cached = CoachOffline.getCached(question);
+    if(!CoachOffline.isOnline() || local){
+      const answer = local || cached ||
+        (stats.caisseNette>=0
+          ? `Aujourd'hui tu as gagné ${simpleAmount(stats.caisseNette)}. Bien continué patron !`
+          : `Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Regarde tes dépenses de plus près.`);
+      $("#eai-answer").textContent = answer.replace(/\*\*/g,"");
+      EasyMode.speak(answer.replace(/\*\*/g,""));
+      if(!CoachOffline.isOnline() && !local && !cached) return;
+      // Continue vers IA en arrière-plan si online (pour améliorer)
+    }
     try{
       const r=await fetch("https://text.pollinations.ai/"+encodeURIComponent(prompt), { headers: { "Accept":"text/plain" } });
       if(!r.ok) throw new Error("HTTP "+r.status);
@@ -6670,11 +6946,14 @@ function openEasyAI(){
       const trimmed=String(txt||"").trim();
       if(trimmed.startsWith("{") && /error|status/i.test(trimmed)) throw new Error("Réponse JSON d'erreur");
       const clean=trimmed.slice(0,500) || "Excuse-moi patron, je n'ai pas compris. Réessaie.";
+      CoachOffline.setCached(question, clean);
       $("#eai-answer").textContent=clean;
       EasyMode.speak(clean);
     }catch(e){
-      const fb=stats.caisseNette>=0?`Aujourd'hui tu as gagné ${simpleAmount(stats.caisseNette)}. Bien continué patron !`:`Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Regarde tes dépenses de plus près.`;
-      $("#eai-answer").textContent=fb; EasyMode.speak(fb);
+      if(!local && !cached){
+        const fb=stats.caisseNette>=0?`Aujourd'hui tu as gagné ${simpleAmount(stats.caisseNette)}. Bien continué patron !`:`Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Regarde tes dépenses de plus près.`;
+        $("#eai-answer").textContent=fb; EasyMode.speak(fb);
+      }
     }
   }
   const mic=$("#eai-mic");
