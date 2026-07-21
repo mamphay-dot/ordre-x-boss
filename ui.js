@@ -4028,23 +4028,32 @@ ${answers}
 
 Reste bref (max 500 mots). Utilise "tu" et parle comme à un ami patron. Pas de jargon marketing.`;
 
+  let text = "";
   try {
+    // Requête anonyme (sans clé API) — reste gratuite selon Pollinations
     const url = "https://text.pollinations.ai/" + encodeURIComponent(prompt);
-    const resp = await fetch(url + "?model=openai");
-    const text = await resp.text();
-    if(!text || text.length < 100) throw new Error("Réponse vide");
+    const resp = await fetch(url, { headers: { "Accept": "text/plain" } });
+    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    text = await resp.text();
+    // Sanity : si la réponse ressemble à du JSON d'erreur, on refuse
+    const trimmed = text.trim();
+    if(trimmed.startsWith("{") && /error|status/i.test(trimmed)) throw new Error("Réponse d'erreur JSON");
+    if(!trimmed || trimmed.length < 100) throw new Error("Réponse trop courte");
+  } catch(e){
+    // Fallback intelligent basé sur les réponses de l'utilisateur (aucune IA requise)
+    text = buildBmcHeuristicStrategy(b, p, stats);
+  }
+
+  try {
     b.strategy = text.slice(0, 3000);
     b.strategyAt = Date.now();
-
     // Parse actions (numérotées 1./2./3.)
-    const actionsMatch = text.split(/📋[^\n]*/i)[1] || "";
-    const acts = actionsMatch.split(/\n\s*(?=\d[\.\)])/).map(s=>s.trim()).filter(s=>s.length>10).slice(0,3);
+    const actionsMatch = text.split(/📋[^\n]*/i)[1] || text;
+    const acts = actionsMatch.split(/\n\s*(?=\d[\.\)])/).map(s=>s.trim()).filter(s=>s.length>10 && /^\d/.test(s)).slice(0,3);
     b.actions = acts.map((a,i)=>({ id:"a"+Date.now()+i, text:a.slice(0,500), done:false, createdAt:Date.now() }));
-
     await persist();
     openBmcView();
   } catch(e){
-    // Fallback local si IA down
     b.strategy = `⚠️ L'IA est indisponible pour le moment. Voici quelques pistes générales :
 
 🎯 CE QUE JE VOIS DE FORT
@@ -4065,6 +4074,93 @@ Sans analyse IA, difficile de savoir. Réessaie plus tard.
 }
 
 /* ---- Vue principale : BMC visuel + stratégie ---- */
+/* Générateur heuristique local : analyse simple des réponses BMC sans IA.
+   Utilisé en fallback quand Pollinations est indisponible (402, timeout, etc.). */
+function buildBmcHeuristicStrategy(bmc, profile, stats){
+  const seg = (bmc.segments||"").toLowerCase();
+  const val = (bmc.value||"").toLowerCase();
+  const chan = (bmc.channels||"").toLowerCase();
+  const rel = (bmc.relations||"").toLowerCase();
+  const rev = (bmc.revenue||"").toLowerCase();
+  const res = (bmc.resources||"").toLowerCase();
+  const act = (bmc.activities||"").toLowerCase();
+  const par = (bmc.partners||"").toLowerCase();
+  const cos = (bmc.costs||"").toLowerCase();
+
+  const forces = [];
+  const faiblesses = [];
+  const actions = [];
+
+  // Analyse des FORCES
+  if(seg.length > 30) forces.push("Tu connais bien ta clientèle (tu l'as décrite en détail).");
+  if(val.match(/qualit|meilleur|frais|maison|tendre|jamais/i)) forces.push("Tu mises sur la qualité — c'est la meilleure raison qu'un client revient.");
+  if(val.match(/prix|moins cher|abordable/i)) forces.push("Tu maîtrises ton prix — argument fort dans un quartier.");
+  if(chan.match(/whatsapp|facebook|instagram|status/i)) forces.push("Tu utilises déjà les réseaux — 80% des patrons ne le font pas.");
+  if(rel.match(/nom|connais|prénom/i)) forces.push("Tu appelles tes clients par leur nom — c'est ta meilleure fidélisation.");
+  if(rel.match(/crédit|fidèle|cadeau/i)) forces.push("Tu récompenses les fidèles — ils te ramèneront leurs amis.");
+  if(rev.length > 20 && rev.split(/\n|,|;/).length >= 2) forces.push("Tu as plusieurs sources de revenus — moins risqué qu'une seule.");
+  if(par.length > 20) forces.push("Tu as un réseau de fournisseurs et de partenaires — c'est solide.");
+  if((profile.revenus||[]).length >= 5) forces.push(`Ton catalogue a ${(profile.revenus||[]).length} produits — bon assortiment.`);
+  if(stats && stats.ventesMois && stats.ventesMois > 0) forces.push(`Tu enregistres tes ventes (${new Intl.NumberFormat('fr-FR').format(stats.ventesMois)} F ce mois) — beaucoup ne le font pas.`);
+
+  // Analyse des FAIBLESSES
+  if(!chan.match(/whatsapp|facebook|instagram|status/i)) faiblesses.push("Tu n'utilises pas assez les réseaux — WhatsApp Status peut te ramener 5-10 clients/semaine gratuitement.");
+  if(!rel.match(/crédit|fidèle|cadeau|carte|remise|réduction/i)) faiblesses.push("Pas de programme de fidélisation — tes clients pourraient vite aller chez le voisin qui offre plus.");
+  if(seg.length < 20) faiblesses.push("Ta clientèle cible est trop floue. Précise leur âge, quartier, budget pour mieux les toucher.");
+  if(val.length < 15) faiblesses.push("Ta différence par rapport au voisin n'est pas claire. Sans ça, le client choisit au hasard.");
+  if(cos.length < 20) faiblesses.push("Tu ne détailles pas tes coûts. Sans savoir ce que tu payes, tu ne sais pas si tu gagnes vraiment.");
+  if(!par.match(/famille|associé|partenaire|fournisseur/i)) faiblesses.push("Peu de partenaires cités — pense à un fournisseur exclusif qui te donne des prix meilleurs.");
+
+  // Limite à 3 forces et 3 faiblesses les plus pertinentes
+  const topForces = forces.slice(0,3);
+  const topFaiblesses = faiblesses.slice(0,3);
+
+  // ACTIONS — 3 concrètes basées sur le contexte
+  // Action 1 : Toujours orientée acquisition (channels)
+  if(!chan.match(/whatsapp/i)){
+    actions.push("Poste 1 WhatsApp Status par jour cette semaine : photo d'un produit + prix + ton numéro. Objectif : 10 nouveaux clients en 7 jours.");
+  } else if(!chan.match(/facebook/i)){
+    actions.push("Crée une page Facebook Pro cette semaine et poste 3 photos de tes produits. Facebook touche les 30-50 ans que WhatsApp Status atteint moins.");
+  } else {
+    actions.push("Choisis 3 clients fidèles et demande-leur de te recommander à un ami cette semaine. Offre-leur 10% sur leur prochaine visite.");
+  }
+
+  // Action 2 : Fidélisation (relations)
+  if(!rel.match(/carte|fidél|remise/i)){
+    actions.push("Mets en place une carte fidélité simple : 1 tampon par achat, 10 tampons = 1 produit gratuit. Un carton découpé fait l'affaire.");
+  } else if(!rel.match(/nom|prénom|connais/i)){
+    actions.push("Note dans BOSS le prénom et le produit préféré de tes 10 meilleurs clients. Utilise leur prénom quand ils viennent — ça change tout.");
+  } else {
+    actions.push("Fais un cadeau surprise à ton meilleur client cette semaine (bonus, remise, cadeau). Il en parlera à son entourage.");
+  }
+
+  // Action 3 : Optimisation (costs / revenue)
+  if(cos.match(/loyer|salaire/i) && val.match(/prix|moins cher/i)){
+    actions.push("Vérifie tes coûts fixes cette semaine (loyer + salaires + charges). Si ça dépasse 40% de ton CA, réfléchis à un partenariat ou déménagement.");
+  } else if((profile.revenus||[]).length < 5){
+    actions.push("Ajoute 2-3 nouveaux produits ce mois-ci. Un catalogue plus large fait revenir les clients qui ont déjà tout essayé.");
+  } else if(stats && stats.ventesMois && stats.ventesMois > 0){
+    actions.push("Regarde dans BOSS tes 3 meilleurs produits ce mois. Mets-les plus en avant (vitrine, WhatsApp, promo combo).");
+  } else {
+    actions.push("Enregistre CHAQUE vente dans BOSS pendant 30 jours. Sans mesurer, tu ne sais pas si tu progresses.");
+  }
+
+  const strengthsBlock = topForces.length ? topForces.map(f=>"• "+f).join("\n") : "Continue à répondre aux 9 questions plus en détail pour que je vois mieux tes forces.";
+  const weaknessBlock = topFaiblesses.length ? topFaiblesses.map(f=>"• "+f).join("\n") : "Rien de flagrant à améliorer — mais continue à mesurer chaque mois.";
+  const actionsBlock = actions.map((a,i)=>`${i+1}. ${a}`).join("\n\n");
+
+  return `🎯 CE QUE JE VOIS DE FORT
+${strengthsBlock}
+
+⚠️ CE QUE JE VOIS DE FAIBLE
+${weaknessBlock}
+
+📋 3 ACTIONS À FAIRE CES 30 JOURS
+${actionsBlock}
+
+💡 Analyse générée localement par BOSS (sans connexion à l'IA distante). Réessaie dans quelques heures pour une analyse IA plus poussée.`;
+}
+
 function openBmcView(){
   const b = bmcState();
   const sheet = $("#sheet");
@@ -6568,13 +6664,16 @@ function openEasyAI(){
     const contexte=`Business : ${p.name}. Métier : ${(BOSS.METIERS[p.metier]||{}).name||"—"}. Aujourd'hui : ${stats.nbV} ventes pour ${stats.ventes} F, ${stats.nbD} dépenses pour ${stats.depenses} F. Solde du jour : ${stats.caisseNette} F.`;
     const prompt=`Tu es BOSS, assistant vocal pour un patron de rapide entreprise en Afrique de l'Ouest. Réponds en français très simple, phrases courtes (moins de 15 mots), sans jargon. Contexte : ${contexte}. Question : ${question}. Réponds en 2-3 phrases maximum.`;
     try{
-      const r=await fetch("https://text.pollinations.ai/"+encodeURIComponent(prompt)+"?model=openai");
+      const r=await fetch("https://text.pollinations.ai/"+encodeURIComponent(prompt), { headers: { "Accept":"text/plain" } });
+      if(!r.ok) throw new Error("HTTP "+r.status);
       const txt=await r.text();
-      const clean=String(txt||"").slice(0,500).trim() || "Excuse-moi patron, je n'ai pas compris. Réessaie.";
+      const trimmed=String(txt||"").trim();
+      if(trimmed.startsWith("{") && /error|status/i.test(trimmed)) throw new Error("Réponse JSON d'erreur");
+      const clean=trimmed.slice(0,500) || "Excuse-moi patron, je n'ai pas compris. Réessaie.";
       $("#eai-answer").textContent=clean;
       EasyMode.speak(clean);
     }catch(e){
-      const fb=stats.caisseNette>=0?`Aujourd'hui tu as gagné ${simpleAmount(stats.caisseNette)}. Bien continué !`:`Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Regarde tes dépenses.`;
+      const fb=stats.caisseNette>=0?`Aujourd'hui tu as gagné ${simpleAmount(stats.caisseNette)}. Bien continué patron !`:`Aujourd'hui tu as perdu ${simpleAmount(-stats.caisseNette)}. Regarde tes dépenses de plus près.`;
       $("#eai-answer").textContent=fb; EasyMode.speak(fb);
     }
   }
