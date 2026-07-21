@@ -465,9 +465,9 @@ const DAY=86400000;
 
 /* ---------- PLANS D'ABONNEMENT (mars 2026) ---------- */
 const PLANS = {
-  starter: {
-    id: "starter", name: "Starter", price: 2500, icon: "medal", iconColor:"#cd7f32",
-    tagline: "Pour tester, ou petite activité",
+  petit: {
+    id: "petit", name: "Petit BOSS", price: 2500, icon: "medal", iconColor:"#cd7f32",
+    tagline: "Pour démarrer, ou petite activité",
     limits: {
       businesses: 1,
       collaborateurs: 0,
@@ -482,11 +482,16 @@ const PLANS = {
       alertes: false,
       templatesMetier: true,
       catalogueShare: true,
+      logoCustom: false,       // pas de logo custom sur reçus
+      historyDays: 30,          // historique 30 jours max
+      maxDevices: 1,            // 1 seul appareil
+      exportsPerMonth: 1,       // 1 export sauvegarde/mois
+      watermark: true,          // watermark 'Créé avec BOSS' sur affiches
       support: "email-48h"
     }
   },
-  business: {
-    id: "business", name: "Business", price: 5000, icon: "medal", iconColor:"#c0c0c0",
+  boss: {
+    id: "boss", name: "BOSS", price: 5000, icon: "medal", iconColor:"#c0c0c0",
     tagline: "La majorité des maquis, boutiques, coiffures",
     limits: {
       businesses: 1,
@@ -502,11 +507,16 @@ const PLANS = {
       alertes: true,
       templatesMetier: true,
       catalogueShare: true,
+      logoCustom: true,
+      historyDays: -1,          // illimité
+      maxDevices: 3,
+      exportsPerMonth: -1,
+      watermark: false,
       support: "whatsapp-24h"
     }
   },
-  pro: {
-    id: "pro", name: "Pro", price: 10000, icon: "crown", iconColor:"#ffd700",
+  grand: {
+    id: "grand", name: "Grand BOSS", price: 10000, icon: "crown", iconColor:"#ffd700",
     tagline: "Business qui grandit, franchises, multi-points de vente",
     limits: {
       businesses: 1,
@@ -522,6 +532,11 @@ const PLANS = {
       alertes: true,
       templatesMetier: true,
       catalogueShare: true,
+      logoCustom: true,
+      historyDays: -1,
+      maxDevices: -1,
+      exportsPerMonth: -1,
+      watermark: false,
       support: "whatsapp-4h"
     }
   }
@@ -530,8 +545,12 @@ const COLLAB_SURCHARGE = 0.6; // +60% du prix du plan par collaborateur ajouté
 const TRIAL_DAYS = 30;         // 30 jours d'essai Pro
 
 function currentPlan(license){
-  const id = (license && license.planId) || "starter";
-  return PLANS[id] || PLANS.starter;
+  let id = (license && license.planId) || "petit";
+  // Migration douce des anciens ID
+  if(id === "starter") id = "petit";
+  else if(id === "business") id = "boss";
+  else if(id === "pro") id = "grand";
+  return PLANS[id] || PLANS.petit;
 }
 function planLimit(license, key){ return currentPlan(license).limits[key]; }
 function planCanUseFeature(license, key){
@@ -555,11 +574,11 @@ function billingV2(license, counts){
 
 function defaultLicense(nowTs){
   nowTs=nowTs||Date.now();
-  // 30 jours d'essai en Pro par défaut, puis bascule Starter
+  // 30 jours d'essai en Grand BOSS par défaut, puis bascule Petit BOSS
   return {
     installedAt: nowTs, trialDays: TRIAL_DAYS, paidUntil: 0,
-    planId: "pro", trialPlanId: "pro",
-    starterAfterTrial: true,
+    planId: "grand", trialPlanId: "grand",
+    petitAfterTrial: true,
     basePrice: 0, extraMetierPrice: 0,
     perCollaborateur: 2000, perCaisse: 1000,  // legacy pour billingDue historique
     acceptedMonthly: 0, acceptedAt: 0,

@@ -1065,6 +1065,21 @@ function openPlus(){
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 function exportBackup(){
+  // Petit BOSS : 1 export par mois seulement
+  const plan = BOSS.currentPlan(state.license);
+  const limit = plan.limits.exportsPerMonth;
+  if(limit > 0){
+    const now = Date.now();
+    state.exports = state.exports || {};
+    const mKey = new Date(now).toISOString().slice(0,7); // YYYY-MM
+    const used = (state.exports[mKey] || 0);
+    if(used >= limit){
+      showUpgradePopup(`Sauvegarde limitée (${limit}/mois avec ${plan.name})`, BOSS.PLANS.boss);
+      return;
+    }
+    state.exports[mKey] = used + 1;
+    persist();
+  }
   const data=BOSS.serializeBackup(state);
   const blob=new Blob([data],{type:"application/json"});
   const url=URL.createObjectURL(blob);
@@ -1226,7 +1241,22 @@ function openClientEntry(){
 /* ---------- HISTORIQUE (graphique SVG, sans dépendance) ---------- */
 function renderHistorique(){
   const p=cur(); const host=$("#h-chart"); if(!host) return;
-  const hist=BOSS.monthlyHistory(p,6,Date.now());
+  // Petit BOSS : historique limité (2 mois = mois courant + précédent)
+  const plan = BOSS.currentPlan(state.license);
+  const maxMonths = plan.limits.historyDays === -1 ? 6 : 2;
+  const hist=BOSS.monthlyHistory(p, maxMonths, Date.now());
+  // Message d'incitation upgrade si limité
+  if(plan.limits.historyDays !== -1){
+    const upgradeMsg = document.getElementById("h-upgrade-note");
+    if(!upgradeMsg){
+      const note = el("div", "ps-note");
+      note.id = "h-upgrade-note";
+      note.style.cssText = "margin-top:12px;padding:10px;background:linear-gradient(135deg,#241f10 0%,#1a1608 100%);border:1px solid var(--gold);border-radius:10px;cursor:pointer;text-align:center";
+      note.innerHTML = `${ic("lock")} Historique limité à 2 mois avec ${plan.name}. <b style="color:var(--gold)">Passe à BOSS</b> pour tout voir.`;
+      note.onclick = openAbonnement;
+      host.parentNode && host.parentNode.appendChild(note);
+    }
+  }
   const _cs=getComputedStyle(document.documentElement);
   const _acc=(_cs.getPropertyValue("--gold")||"#C8A23A").trim();
   const _gray=(_cs.getPropertyValue("--cream-dim")||"#9A9AA0").trim();
@@ -1831,6 +1861,10 @@ function renderAuthSheet(sheet){
 }
 
 async function openCloudSheet(){
+  // Cloud sync est réservé à BOSS et plus — mais on autorise l'écran de connexion
+  // pour ceux qui ont un compte actif (permet d'inspecter/déconnexion).
+  // Le vrai gating est sur les actions de sync (Cloud.pushLocal / pullAndMerge).
+
   const sheet=$("#sheet"); sheet.innerHTML="";
   const head=el("div","sheet-head",`<h3>${ic("cloud")} Espace en ligne</h3><button class='x' id='sheet-close'>×</button>`);
   sheet.appendChild(head);
@@ -2931,6 +2965,57 @@ async function acceptMonthlyUpdate(reason,silent){
   enforceLicense&&enforceLicense();
   return m;
 }
+/* ============================================================
+   Feature guards : bloque les fonctions selon le plan et propose upgrade
+   ============================================================ */
+function planNeededFor(feature){
+  // Retourne le plan MINIMUM requis pour une fonctionnalité
+  if(feature === "cloudSync") return "boss";
+  if(feature === "thermalPrint") return "boss";
+  if(feature === "cgaReports") return "boss";
+  if(feature === "alertes") return "boss";
+  if(feature === "collaborateurs") return "boss";
+  if(feature === "affichesPerMonth") return "boss";
+  if(feature === "logoCustom") return "boss";
+  if(feature === "advancedStats") return "grand";
+  return "petit";
+}
+
+function canUse(feature){
+  const plan = BOSS.currentPlan(state.license);
+  const limit = plan.limits[feature];
+  return limit === true || limit === -1 || (typeof limit === "number" && limit > 0);
+}
+
+function requirePlan(feature, featureLabel){
+  if(canUse(feature)) return true;
+  const needed = planNeededFor(feature);
+  const targetPlan = BOSS.PLANS[needed];
+  showUpgradePopup(featureLabel, targetPlan);
+  return false;
+}
+
+function showUpgradePopup(featureLabel, targetPlan){
+  const sheet = $("#sheet");
+  sheet.innerHTML = `
+    <div class="sheet-head"><h3>${ic("lock")} Fonction verrouillée</h3><button class="x" id="sheet-close">×</button></div>
+    <div style="text-align:center;padding:20px 10px">
+      <div style="color:${targetPlan.iconColor||'var(--gold)'};font-size:56px;line-height:1;margin-bottom:10px">${ic(targetPlan.icon,"xxl")}</div>
+      <h2 style="font-family:'Archivo';font-weight:800;font-size:20px;margin:0 0 6px">${escapeHtml(featureLabel||"Cette fonction")}</h2>
+      <div style="color:var(--cream-dim);font-size:14px;line-height:1.5;max-width:340px;margin:0 auto 16px">
+        Réservée au plan <b style="color:${targetPlan.iconColor||'var(--gold)'}">${escapeHtml(targetPlan.name)}</b> et supérieurs.<br>
+        Passe à <b>${escapeHtml(targetPlan.name)}</b> pour <b>${new Intl.NumberFormat('fr-FR').format(targetPlan.price)} F/mois</b>.
+      </div>
+    </div>
+    <button class="sheet-add" id="up-goto">${ic("crown")} Voir les plans et changer</button>
+    <button class="plus-item" id="up-cancel" style="margin-top:8px">Plus tard</button>
+  `;
+  $("#sheet-close").onclick = closeSheet;
+  $("#up-cancel").onclick = closeSheet;
+  $("#up-goto").onclick = ()=>{ closeSheet(); setTimeout(openAbonnement, 300); };
+  $("#overlay").classList.add("on"); sheet.classList.add("on");
+}
+
 function openAbonnement(){
   const counts = accountCounts();
   const bill = BOSS.billingV2(state.license, counts);
@@ -3026,6 +3111,7 @@ function openAbonnement(){
   $("#overlay").classList.add("on"); sheet.classList.add("on");
 }
 function openTeam(){
+  if(!requirePlan("collaborateurs", "Mon équipe (collaborateurs)")) return;
   const p=cur(); const sheet=$("#sheet");
   const rows=p.collaborateurs.map((c,i)=>`<div class="cat-row"><div class="cat-info"><div class="cat-n">${escapeHtml(c.nom||"(sans nom)")}${c.actif===false?" · inactif":""}</div><div class="cat-m">${(BOSS.ROLES[c.role]||{}).label||c.role} · ${(c.permissions||[]).length} droit(s)</div></div><button class="cat-b" data-a="edit" data-i="${i}">${ic("edit")}</button><button class="cat-b" data-a="del" data-i="${i}">${ic("del")}</button></div>`).join("");
   const due=BOSS.billingDue(state.license,accountCounts());
@@ -5867,6 +5953,7 @@ const Thermal = (function(){
 })();
 
 function openThermalPrint(){
+  if(!requirePlan("thermalPrint", "Impression Bluetooth thermal")) return;
   const p = cur();
   const sheet = $("#sheet");
   sheet.innerHTML = `
@@ -5921,7 +6008,10 @@ function openThermalPrint(){
 const HORIZONS = [7, 14, 30, 60, 90];
 let __statsHorizon = 30;
 
-function openStats(){ renderStats(); }
+function openStats(){
+  if(!requirePlan("advancedStats", "Stats avancées + prévision trésorerie")) return;
+  renderStats();
+}
 
 function computeSalesForRange(p, fromTs){
   const c = (p.caisse||[]).filter(e => e.type==="vente" && (fromTs==null || e.ts>=fromTs));
@@ -6096,7 +6186,10 @@ function computeAlertes(p, horizonDays){
 }
 
 let __alertesHorizon = 30;
-function openAlertes(){ renderAlertes(); }
+function openAlertes(){
+  if(!requirePlan("alertes", "Alertes intelligentes multi-horizons")) return;
+  renderAlertes();
+}
 function renderAlertes(){
   const p = cur();
   const alerts = computeAlertes(p, __alertesHorizon);
@@ -6129,6 +6222,7 @@ function renderAlertes(){
    RAPPORTS FISCAUX CGA/CEA (Ivoire/Sénégal — cadre standard)
    ============================================================ */
 function openFiscal(){
+  if(!requirePlan("cgaReports", "Rapports fiscaux CGA/CEA")) return;
   const p = cur();
   const now = new Date();
   const defaultYear = now.getFullYear();
@@ -6376,6 +6470,7 @@ const AFF_FORMATS = [
 ];
 
 function openAffiches(preselectedProductId){
+  if(!requirePlan("affichesPerMonth", "Créer des affiches IA")) return;
   const p = cur();
   const products = (p.revenus||[]).filter(r=>r.nom);
   const idx = preselectedProductId ? Math.max(0, products.findIndex(r=>r.id===preselectedProductId)) : 0;
@@ -6560,6 +6655,17 @@ async function composeAffiche(format){
     const addrSize = Math.round(W * 0.022);
     ctx.font = `500 ${addrSize}px 'Inter', sans-serif`;
     ctx.fillText("📍 "+p.identite.adresse, W/2, H - zoneH*0.03);
+  }
+
+  // Watermark 'Créé avec BOSS' pour Petit BOSS (retiré en BOSS et Grand BOSS)
+  const plan = BOSS.currentPlan(state.license);
+  if(plan.limits.watermark){
+    const wmSize = Math.round(W * 0.024);
+    ctx.font = `600 ${wmSize}px 'Inter', sans-serif`;
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.textAlign = "right";
+    ctx.fillText("Créé avec BOSS · boss.ordre-x.com", W - wmSize, wmSize*2);
+    ctx.textAlign = "center";
   }
 
   return await new Promise(res => canvas.toBlob(b => res(b), "image/jpeg", 0.92));

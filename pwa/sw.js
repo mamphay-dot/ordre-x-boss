@@ -1,4 +1,4 @@
-const CACHE = "boss-v45";
+const CACHE = "boss-v46";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
 // Background Sync API — Chrome/Android peut réveiller le SW pour drain la queue
